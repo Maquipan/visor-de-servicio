@@ -215,9 +215,8 @@
                             <th data-sort="numNV">Nº NV<span class="sort-indicator"></span></th>
                             <th data-sort="cliente">Cliente<span class="sort-indicator"></span></th>
                             <th data-sort="vendedor">Vendedor<span class="sort-indicator"></span></th>
-                            <th data-sort="tieneRepuestos">Rep.<span class="sort-indicator"></span></th>
-                            <th data-sort="repuestosDespachados">Rep. Desp.<span class="sort-indicator"></span></th>
                             <th data-sort="timestamp">Últ. Mod.<span class="sort-indicator"></span></th>
+                            <th data-sort="fechaAsignada">F. Asignada<span class="sort-indicator"></span></th>
                             <th data-sort="estado">Estado<span class="sort-indicator"></span></th>
                             <th>Acciones</th>
                         </tr>
@@ -249,6 +248,8 @@
                     <div class="detail-item"><strong>Teléfono:</strong> <span id="modal-telefono"></span></div>
                     <div class="detail-item"><strong>Tiene Repuestos:</strong> <span id="modal-tieneRepuestos"></span></div>
                     <div class="detail-item"><strong>Repuestos Despachados:</strong> <span id="modal-repDespachados"></span></div>
+                    <div class="detail-item"><strong>Fecha Sugerida (Ejec.):</strong> <span id="modal-fecha-programacion"></span></div>
+                    <div class="detail-item"><strong>Fecha Asignada (Planif.):</strong> <span id="modal-fecha-asignada"></span></div>
                     <div class="detail-item"><strong>Fecha Creación:</strong> <span id="modal-fecha-solicitud"></span></div>
                     <div class="detail-item"><strong>Última Edición:</strong> <span id="modal-fecha-edicion"></span></div>
                     <div class="detail-item full-width"><strong>Info. Servicio:</strong> <span id="modal-info-servicio"></span></div>
@@ -284,6 +285,7 @@
                 direccion: document.getElementById('modal-direccion'), vendedor: document.getElementById('modal-vendedor'), estado: document.getElementById('modal-estado'),
                 contacto: document.getElementById('modal-contacto'), telefono: document.getElementById('modal-telefono'),
                 tieneRepuestos: document.getElementById('modal-tieneRepuestos'), repDespachados: document.getElementById('modal-repDespachados'),
+                fechaProgramacion: document.getElementById('modal-fecha-programacion'), fechaAsignada: document.getElementById('modal-fecha-asignada'),
                 fechaSolicitud: document.getElementById('modal-fecha-solicitud'), fechaEdicion: document.getElementById('modal-fecha-edicion'),
                 infoServicio: document.getElementById('modal-info-servicio'), obsPlanificacion: document.getElementById('modal-obs-planificacion'),
             },
@@ -386,8 +388,9 @@
                 tr.innerHTML = `
                     <td>${s.numRequerimiento || 'N/A'}</td><td>${s.numNV || 'N/A'}</td>
                     <td>${s.cliente || 'N/A'}</td><td>${s.vendedor ? s.vendedor.split('@')[0] : 'N/A'}</td>
-                    <td>${s.tieneRepuestos || 'No'}</td><td>${s.tieneRepuestos === 'Sí' ? (s.repuestosDespachados || 'Pendiente') : 'N/A'}</td>
-                    <td>${fechaMostrada}</td><td>${s.estado || 'N/A'}</td>
+                    <td>${fechaMostrada}</td>
+                    <td>${formatDateString(s.fechaAsignada)}</td>
+                    <td>${s.estado || 'N/A'}</td>
                     <td><button class="view-details-btn icon-btn" data-id="${s.id}" style="width:100%; justify-content:center;">Ver</button></td>`;
                 ui.tableBody.appendChild(tr);
             });
@@ -416,7 +419,7 @@
         function updateSortIndicators() {
             ui.headers.forEach(header => {
                 const indicator = header.querySelector('.sort-indicator');
-                if (indicator) { // Comprobación para evitar errores
+                if (indicator) {
                     indicator.textContent = header.dataset.sort === state.sortConfig.column ? (state.sortConfig.direction === 'asc' ? '▲' : '▼') : '';
                 }
             });
@@ -435,6 +438,8 @@
             });
             ui.modal.vendedor.textContent = service.vendedor ? service.vendedor.split('@')[0] : 'N/A';
             ui.modal.repDespachados.textContent = service.tieneRepuestos === 'Sí' ? (service.repuestosDespachados || 'Pendiente') : 'N/A';
+            ui.modal.fechaProgramacion.textContent = formatDateString(service.fechaProgramacion);
+            ui.modal.fechaAsignada.textContent = formatDateString(service.fechaAsignada);
             ui.modal.fechaSolicitud.textContent = service.fechaSolicitud || formatTimestamp(service.timestamp);
             ui.modal.fechaEdicion.textContent = service.fechaEdicion ? formatTimestamp(service.fechaEdicion) : 'Sin ediciones';
             ui.modal.obsPlanificacion.textContent = service.observacionesPlanificacion || 'Sin observaciones.';
@@ -443,6 +448,12 @@
 
         function closeModal() { ui.modal.overlay.classList.remove('visible'); }
         function formatTimestamp(ts) { if(!ts?.toDate) return 'N/A'; const d=ts.toDate(); return `${d.toLocaleDateString('es-CL')} ${d.toLocaleTimeString('es-CL')}`; }
+        function formatDateString(dateStr) {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
 
         function savePreferences() {
             const prefs = {
@@ -467,8 +478,8 @@
         }
         
         function exportToCSV() {
-            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Solicitud Original", "Fecha Última Edición", "Fecha Asignada", "Estado", "Info. Servicio", "Observaciones Planificación", "Dirección", "Contacto", "Teléfono"];
-            const rows = state.filteredServices.map(s => [s.numRequerimiento, s.numNV, s.cliente, s.vendedor, s.tieneRepuestos, s.repuestosDespachados, s.fechaSolicitud, s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', s.fechaAsignada, s.estado, s.infoServicio, s.observacionesPlanificacion, s.direccion, s.nomContacto, s.numContacto].map(val => `"${String(val || '').replace(/"/g, '""')}"`));
+            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Sugerida", "Fecha Asignada", "Fecha Solicitud Original", "Fecha Última Edición", "Estado", "Info. Servicio", "Observaciones Planificación", "Dirección", "Contacto", "Teléfono"];
+            const rows = state.filteredServices.map(s => [s.numRequerimiento, s.numNV, s.cliente, s.vendedor, s.tieneRepuestos, s.repuestosDespachados, s.fechaProgramacion, s.fechaAsignada, s.fechaSolicitud, s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', s.estado, s.infoServicio, s.observacionesPlanificacion, s.direccion, s.nomContacto, s.numContacto].map(val => `"${String(val || '').replace(/"/g, '""')}"`));
             const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
             const link = document.createElement("a");
             link.setAttribute("href", encodeURI(csvContent));
