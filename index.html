@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Control de Servicios</title>
+    <title>Dashboard de Control de Servicios (En Vivo)</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -19,6 +19,7 @@
             --accent-glow: rgba(125, 207, 255, 0.2); --border-color: #3b3f51;
             --success: #9ece6a; --pending: #e0af68; --danger: #f7768e;
             --modal-bg: rgba(36, 40, 59, 0.85);
+            --highlight-bg: rgba(125, 207, 255, 0.25);
         }
 
         [data-theme="light"] {
@@ -27,6 +28,7 @@
             --accent-glow: rgba(0, 123, 255, 0.15); --border-color: #dee2e6;
             --success: #28a745; --pending: #ffc107; --danger: #dc3545;
             --modal-bg: rgba(255, 255, 255, 0.85);
+            --highlight-bg: rgba(0, 123, 255, 0.15);
         }
 
         *, *::before, *::after { box-sizing: border-box; }
@@ -37,7 +39,7 @@
             transition: background-color var(--transition-speed), color var(--transition-speed);
         }
 
-        .container { max-width: 1600px; margin: 0 auto; padding: 1rem 1.5rem; }
+        .container { max-width: 1800px; margin: 0 auto; padding: 1rem 1.5rem; }
 
         .header-controls {
             display: flex; justify-content: space-between; align-items: center;
@@ -95,13 +97,26 @@
         th { font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; position: relative; }
         th .sort-indicator { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); opacity: 0.6; }
         tbody tr:hover { background-color: var(--bg-tertiary); }
+        
+        @keyframes fadeOutHighlight {
+            from { background-color: var(--highlight-bg); }
+            to { background-color: transparent; }
+        }
+        tr.recently-updated {
+            animation: fadeOutHighlight 5s ease-out;
+        }
 
         td {
-            white-space: normal;
-            word-break: break-word;
+            white-space: nowrap;
             vertical-align: middle;
         }
         
+        td.observation-cell {
+            white-space: normal;
+            min-width: 250px;
+            max-width: 350px;
+        }
+
         .results-footer { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; flex-wrap: wrap; gap: 1rem; }
         #results-info { font-size: 0.9rem; color: var(--text-secondary); }
         .pagination-controls button {
@@ -146,7 +161,7 @@
     
     <div class="container">
         <div class="header-controls">
-            <h1>Panel de Control</h1>
+            <h1>Panel de Control (En Vivo)</h1>
             <div class="action-buttons">
                 <button class="icon-btn" id="export-csv-btn">
                     <svg fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 7.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L9 10.586V3a1 1 0 112 0v7.586l2.707-2.707a1 1 0 011.414 0zM4 14a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z"></path></svg>
@@ -215,9 +230,11 @@
                             <th data-sort="numNV">Nº NV<span class="sort-indicator"></span></th>
                             <th data-sort="cliente">Cliente<span class="sort-indicator"></span></th>
                             <th data-sort="vendedor">Vendedor<span class="sort-indicator"></span></th>
-                            <th data-sort="timestamp">Últ. Mod.<span class="sort-indicator"></span></th>
+                            <th data-sort="tieneRepuestos">Tiene Rep.<span class="sort-indicator"></span></th>
+                            <th data-sort="repuestosDespachados">Rep. Desp.<span class="sort-indicator"></span></th>
                             <th data-sort="fechaAsignada">F. Asignada<span class="sort-indicator"></span></th>
                             <th data-sort="estado">Estado<span class="sort-indicator"></span></th>
+                            <th data-sort="observacionesPlanificacion">Obs. Planif.<span class="sort-indicator"></span></th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -306,17 +323,30 @@
             filteredServices: [],
             sortConfig: { column: 'timestamp', direction: 'desc' },
             pagination: { currentPage: 1, rowsPerPage: 20 },
+            isFirstLoad: true,
         };
         
         async function init() {
             loadPreferences();
+            addEventListeners();
             try {
                 await auth.signInWithEmailAndPassword(viewerEmail, viewerPassword);
-                const snapshot = await db.collection('servicios').get();
-                state.allServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                populateFilters();
-                addEventListeners();
-                applyFiltersAndRender();
+                
+                db.collection('servicios').onSnapshot(snapshot => {
+                    console.log("Datos recibidos en tiempo real.");
+                    state.allServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    if (state.isFirstLoad) {
+                        populateFilters();
+                        state.isFirstLoad = false;
+                    }
+                    
+                    applyFiltersAndRender();
+                }, error => {
+                    console.error("Error al escuchar la base de datos:", error);
+                    alert("Se perdió la conexión a la base de datos en tiempo real.");
+                });
+
             } catch (error) { console.error("Error en la inicialización:", error); alert("No se pudo conectar a la base de datos."); }
         }
 
@@ -347,7 +377,7 @@
                     (!f.repuestos.value || s.tieneRepuestos === f.repuestos.value) &&
                     (!f.repDespachados.value || s.repuestosDespachados === f.repDespachados.value);
             });
-            if (state.pagination.currentPage > Math.ceil(state.filteredServices.length / state.pagination.rowsPerPage)) {
+            if (state.pagination.currentPage > Math.ceil(state.filteredServices.length / state.pagination.rowsPerPage) && state.filteredServices.length > 0) {
                 state.pagination.currentPage = 1;
             }
         }
@@ -358,9 +388,12 @@
                 let valA = a[column], valB = b[column];
                 if (column === 'timestamp') { valA = a.fechaEdicion || a.timestamp; valB = b.fechaEdicion || b.timestamp; }
                 if (valA?.toDate) valA = valA.toDate(); if (valB?.toDate) valB = valB.toDate();
-                if (!valA) return 1; if (!valB) return -1;
-                if (valA < valB) return direction === 'asc' ? 1 : -1;
-                if (valA > valB) return direction === 'asc' ? -1 : 1;
+                if (valA === undefined || valA === null) return 1;
+                if (valB === undefined || valB === null) return -1;
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                if (valA < valB) return direction === 'asc' ? -1 : 1;
+                if (valA > valB) return direction === 'asc' ? 1 : -1;
                 return 0;
             });
         }
@@ -368,7 +401,7 @@
         function renderDashboard() {
             const source = state.filteredServices;
             ui.kpi.total.textContent = source.length;
-            ui.kpi.confirmed.textContent = source.filter(s => s.estado === 'Confirmado').length;
+            ui.kpi.confirmed.textContent = source.filter(s => s.estado === 'Confirmado' || s.estado === 'En Progreso').length;
             ui.kpi.pending.textContent = source.filter(s => s.estado === 'Pendiente').length;
         }
 
@@ -378,20 +411,36 @@
             const pageServices = state.filteredServices.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
             if (pageServices.length === 0) {
-                ui.tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center;">No se encontraron resultados.</td></tr>`;
+                ui.tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No se encontraron resultados.</td></tr>`;
                 return;
             }
 
             pageServices.forEach(s => {
                 const tr = document.createElement('tr');
-                let fechaMostrada = s.fechaEdicion ? `${formatTimestamp(s.fechaEdicion)} (Ed.)` : (s.fechaSolicitud || formatTimestamp(s.timestamp));
+                
+                const lastModified = s.fechaEdicion || s.timestamp;
+                if (lastModified?.toDate) {
+                    const diffSeconds = (new Date() - lastModified.toDate()) / 1000;
+                    if (diffSeconds < 90) { 
+                        tr.classList.add('recently-updated');
+                    }
+                }
+                
+                const obsFull = s.observacionesPlanificacion || '';
+                const obsSnippet = obsFull.length > 35 ? obsFull.substring(0, 35) + '...' : obsFull;
+
                 tr.innerHTML = `
-                    <td>${s.numRequerimiento || 'N/A'}</td><td>${s.numNV || 'N/A'}</td>
-                    <td>${s.cliente || 'N/A'}</td><td>${s.vendedor ? s.vendedor.split('@')[0] : 'N/A'}</td>
-                    <td>${fechaMostrada}</td>
+                    <td>${s.numRequerimiento || 'N/A'}</td>
+                    <td>${s.numNV || 'N/A'}</td>
+                    <td>${s.cliente || 'N/A'}</td>
+                    <td>${s.vendedor ? s.vendedor.split('@')[0] : 'N/A'}</td>
+                    <td>${s.tieneRepuestos || 'N/A'}</td>
+                    <td>${s.repuestosDespachados || 'N/A'}</td>
                     <td>${formatDateString(s.fechaAsignada)}</td>
                     <td>${s.estado || 'N/A'}</td>
+                    <td class="observation-cell" title="${obsFull}">${obsSnippet || 'N/A'}</td>
                     <td><button class="view-details-btn icon-btn" data-id="${s.id}" style="width:100%; justify-content:center;">Ver</button></td>`;
+
                 ui.tableBody.appendChild(tr);
             });
         }
@@ -399,11 +448,15 @@
         function renderPagination() {
             ui.pagination.innerHTML = '';
             const totalPages = Math.ceil(state.filteredServices.length / state.pagination.rowsPerPage);
+            if (totalPages <= 1) {
+                ui.resultsInfo.textContent = `Mostrando ${state.filteredServices.length} resultados.`;
+                return;
+            }
+
             const start = (state.pagination.currentPage - 1) * state.pagination.rowsPerPage + 1;
             const end = Math.min(start + state.pagination.rowsPerPage - 1, state.filteredServices.length);
-            ui.resultsInfo.textContent = state.filteredServices.length > 0 ? `Mostrando ${start}-${end} de ${state.filteredServices.length} resultados.` : 'No hay resultados.';
+            ui.resultsInfo.textContent = `Mostrando ${start}-${end} de ${state.filteredServices.length} resultados.`;
 
-            if (totalPages <= 1) return;
             const createButton = (text, page, isDisabled = false, isActive = false) => {
                 const button = document.createElement('button');
                 button.innerHTML = text; button.disabled = isDisabled;
@@ -412,7 +465,23 @@
                 return button;
             };
             ui.pagination.appendChild(createButton('‹', state.pagination.currentPage - 1, state.pagination.currentPage === 1));
-            for (let i = 1; i <= totalPages; i++) ui.pagination.appendChild(createButton(i, i, false, i === state.pagination.currentPage));
+            let pages = [];
+            if(totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+                pages = [1, 2];
+                let startPage = Math.max(3, state.pagination.currentPage - 1);
+                let endPage = Math.min(totalPages - 2, state.pagination.currentPage + 1);
+                if (state.pagination.currentPage > 3) pages.push('...');
+                for (let i = startPage; i <= endPage; i++) pages.push(i);
+                if (state.pagination.currentPage < totalPages - 2) pages.push('...');
+                pages.push(totalPages - 1, totalPages);
+            }
+
+            pages.forEach(p => {
+                if(typeof p === 'number') ui.pagination.appendChild(createButton(p, p, false, p === state.pagination.currentPage));
+                else { const span = document.createElement('span'); span.textContent = '...'; span.style.padding = '0.5rem'; ui.pagination.appendChild(span); }
+            });
             ui.pagination.appendChild(createButton('›', state.pagination.currentPage + 1, state.pagination.currentPage === totalPages));
         }
         
@@ -420,27 +489,39 @@
             ui.headers.forEach(header => {
                 const indicator = header.querySelector('.sort-indicator');
                 if (indicator) {
-                    indicator.textContent = header.dataset.sort === state.sortConfig.column ? (state.sortConfig.direction === 'asc' ? '▲' : '▼') : '';
+                    if (header.dataset.sort === 'timestamp') { // Ocultar indicador para el sort por defecto que ya no es visible
+                         indicator.textContent = '';
+                    } else {
+                        indicator.textContent = header.dataset.sort === state.sortConfig.column ? (state.sortGg.direction === 'asc' ? '▲' : '▼') : '';
+                    }
                 }
             });
         }
         
         function populateFilters() {
             const getUniqueValues = (key) => [...new Set(state.allServices.map(s => s[key]).filter(Boolean))].sort();
-            getUniqueValues('estado').forEach(val => ui.filters.estado.add(new Option(val, val)));
+            
+            const currentVendedor = ui.filters.vendedor.value;
+            ui.filters.vendedor.innerHTML = '<option value="">Todos</option>';
             getUniqueValues('vendedor').forEach(val => ui.filters.vendedor.add(new Option(val.split('@')[0], val)));
+            ui.filters.vendedor.value = currentVendedor;
+
+            const currentEstado = ui.filters.estado.value;
+            ui.filters.estado.innerHTML = '<option value="">Todos</option>';
+            getUniqueValues('estado').forEach(val => ui.filters.estado.add(new Option(val, val)));
+            ui.filters.estado.value = currentEstado;
         }
 
         function openModal(service) {
             ui.modal.reqNum.textContent = `Detalles: Req #${service.numRequerimiento || 'N/A'}`;
             Object.keys(ui.modal).forEach(key => {
-                if(ui.modal[key] && service[key] !== undefined) ui.modal[key].textContent = service[key] || 'N/A';
+                if(ui.modal[key] && service[key] !== undefined && typeof ui.modal[key].textContent !== 'undefined') ui.modal[key].textContent = service[key] || 'N/A';
             });
             ui.modal.vendedor.textContent = service.vendedor ? service.vendedor.split('@')[0] : 'N/A';
             ui.modal.repDespachados.textContent = service.tieneRepuestos === 'Sí' ? (service.repuestosDespachados || 'Pendiente') : 'N/A';
             ui.modal.fechaProgramacion.textContent = formatDateString(service.fechaProgramacion);
             ui.modal.fechaAsignada.textContent = formatDateString(service.fechaAsignada);
-            ui.modal.fechaSolicitud.textContent = service.fechaSolicitud || formatTimestamp(service.timestamp);
+            ui.modal.fechaSolicitud.textContent = formatTimestamp(service.timestamp);
             ui.modal.fechaEdicion.textContent = service.fechaEdicion ? formatTimestamp(service.fechaEdicion) : 'Sin ediciones';
             ui.modal.obsPlanificacion.textContent = service.observacionesPlanificacion || 'Sin observaciones.';
             ui.modal.overlay.classList.add('visible');
@@ -478,18 +559,35 @@
         }
         
         function exportToCSV() {
-            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Sugerida", "Fecha Asignada", "Fecha Solicitud Original", "Fecha Última Edición", "Estado", "Info. Servicio", "Observaciones Planificación", "Dirección", "Contacto", "Teléfono"];
-            const rows = state.filteredServices.map(s => [s.numRequerimiento, s.numNV, s.cliente, s.vendedor, s.tieneRepuestos, s.repuestosDespachados, s.fechaProgramacion, s.fechaAsignada, s.fechaSolicitud, s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', s.estado, s.infoServicio, s.observacionesPlanificacion, s.direccion, s.nomContacto, s.numContacto].map(val => `"${String(val || '').replace(/"/g, '""')}"`));
+            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Sugerida", "Fecha Asignada", "Fecha Creación/Solicitud", "Fecha Última Edición", "Estado", "Observaciones Planificación", "Info. Servicio", "Dirección", "Contacto", "Teléfono"];
+            const rows = state.filteredServices.map(s => [
+                s.numRequerimiento, s.numNV, s.cliente, s.vendedor, 
+                s.tieneRepuestos, s.repuestosDespachados, 
+                s.fechaProgramacion, s.fechaAsignada, 
+                formatTimestamp(s.timestamp), s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', 
+                s.estado, s.observacionesPlanificacion, s.infoServicio, 
+                s.direccion, s.nomContacto, s.numContacto
+            ].map(val => `"${String(val || '').replace(/"/g, '""')}"`));
+            
             const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
             const link = document.createElement("a");
             link.setAttribute("href", encodeURI(csvContent));
             link.setAttribute("download", `reporte_servicios_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
         }
 
         function addEventListeners() {
             Object.values(ui.filters).forEach(el => el.addEventListener('input', () => { state.pagination.currentPage = 1; applyFiltersAndRender(); }));
-            ui.filters.btnClear.addEventListener('click', () => { Object.values(ui.filters).forEach(el => { if(el.tagName !== 'BUTTON') el.value = ''; }); applyFiltersAndRender(); });
+            ui.filters.btnClear.addEventListener('click', () => { 
+                ui.filters.busqueda.value = '';
+                ui.filters.estado.value = '';
+                ui.filters.vendedor.value = '';
+                ui.filters.repuestos.value = '';
+                ui.filters.repDespachados.value = '';
+                applyFiltersAndRender(); 
+            });
             ui.headers.forEach(header => header.addEventListener('click', () => {
                 const newColumn = header.dataset.sort;
                 if (!newColumn) return;
