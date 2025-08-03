@@ -79,6 +79,9 @@
         .kpi-card .label { font-size: 1rem; color: var(--text-secondary); margin-top: 0.5rem; }
         .kpi-card.success { border-left-color: var(--success); }
         .kpi-card.pending { border-left-color: var(--pending); }
+        /* Estilo para el KPI de Monto Total */
+        .kpi-card.total-amount { border-left-color: var(--accent); } /* Puedes elegir un color diferente si lo deseas */
+
 
         .card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
         .card h2 { margin-top: 0; margin-bottom: 1.5rem; font-size: 1.2rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
@@ -90,6 +93,21 @@
             border-radius: 8px; font-size: 0.9rem; background: var(--bg-tertiary); color: var(--text-primary);
         }
         .filtro-item input:focus, .filtro-item select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+        /* Estilos para el select multiple de vendedores */
+        .filtro-item select[multiple] {
+            min-height: 80px; /* Suficiente altura para ver varias opciones */
+            padding: 0.5rem;
+            background-image: none; /* Eliminar flecha si no es necesaria para multiple */
+            overflow-y: auto; /* Para cuando haya muchas opciones */
+        }
+        .filtro-item select[multiple] option {
+            padding: 5px 10px;
+        }
+        .filtro-item select[multiple] option:checked {
+            background-color: var(--accent);
+            color: var(--bg-secondary);
+        }
         
         .table-container { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
@@ -140,6 +158,11 @@
         .modal-content .full-width { grid-column: 1 / -1; }
         #modal-obs-planificacion { display: block; white-space: pre-wrap; background-color: var(--bg-primary); padding: 0.5rem; border-radius: 6px; margin-top: 0.5rem; max-height: 150px; overflow-y: auto; font-style: italic; }
 
+        /* Estilos específicos para inputs de fecha */
+        [data-theme="dark"] input[type="date"] {
+            color-scheme: dark; /* Asegura que el calendario emergente sea oscuro */
+        }
+
         @media (max-width: 992px) {
             .filtros-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
             .table-container { -webkit-overflow-scrolling: touch; }
@@ -189,6 +212,10 @@
                 <div class="value" id="kpi-confirmed">-</div>
                 <div class="label">Servicios Confirmados</div>
             </div>
+            <div class="kpi-card total-amount">
+                <div class="value" id="kpi-total-amount">-</div>
+                <div class="label">Monto Total Servicios</div>
+            </div>
         </div>
 
         <div class="card">
@@ -203,8 +230,28 @@
                     <select id="filtro-estado"><option value="">Todos</option></select>
                 </div>
                 <div class="filtro-item">
-                    <label for="filtro-vendedor">Vendedor</label>
-                    <select id="filtro-vendedor"><option value="">Todos</option></select>
+                    <label for="filtro-vendedor">Vendedor(es)</label>
+                    <select id="filtro-vendedor" multiple size="3"></select> </div>
+                <div class="filtro-item">
+                    <label for="filtro-tipo-servicio">Tipo de Servicio</label>
+                    <select id="filtro-tipo-servicio">
+                        <option value="">Todos</option>
+                        <option value="Canal Tradicional">Canal Tradicional</option>
+                        <option value="Proyeccion">Proyección</option>
+                        <option value="Retail Mantencion">Retail Mantención</option>
+                        <option value="Retail Asistencia">Retail Asistencia</option>
+                        <option value="Retail Repuestos">Retail Repuestos</option>
+                        <option value="Post Venta">Post Venta</option>
+                        <option value="Montaje">Montaje</option>
+                    </select>
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-fecha-asignada-desde">Fecha Asignada Desde</label>
+                    <input type="date" id="filtro-fecha-asignada-desde">
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-fecha-asignada-hasta">Fecha Asignada Hasta</label>
+                    <input type="date" id="filtro-fecha-asignada-hasta">
                 </div>
                 <div class="filtro-item">
                     <label for="filtro-repuestos">Tiene Repuestos</label>
@@ -229,7 +276,7 @@
                             <th data-sort="numRequerimiento">Nº Req.<span class="sort-indicator"></span></th>
                             <th data-sort="numNV">Nº NV<span class="sort-indicator"></span></th>
                             <th data-sort="cliente">Cliente<span class="sort-indicator"></span></th>
-                            <th data-sort="vendedor">Vendedor<span class="sort-indicator"></span></th>
+                            <th data-sort="montoServicio">Monto<span class="sort-indicator"></span></th> <th data-sort="tipoServicio">Tipo Servicio<span class="sort-indicator"></span></th> <th data-sort="vendedor">Vendedor<span class="sort-indicator"></span></th>
                             <th data-sort="tieneRepuestos">Tiene Rep.<span class="sort-indicator"></span></th>
                             <th data-sort="repuestosDespachados">Rep. Desp.<span class="sort-indicator"></span></th>
                             <th data-sort="fechaAsignada">F. Asignada<span class="sort-indicator"></span></th>
@@ -261,6 +308,8 @@
                     <div class="detail-item full-width"><strong>Dirección:</strong> <span id="modal-direccion"></span></div>
                     <div class="detail-item"><strong>Vendedor:</strong> <span id="modal-vendedor"></span></div>
                     <div class="detail-item"><strong>Estado Actual:</strong> <span id="modal-estado"></span></div>
+                    <div class="detail-item"><strong>Monto Servicio:</strong> <span id="modal-montoServicio"></span></div>
+                    <div class="detail-item"><strong>Tipo Servicio:</strong> <span id="modal-tipoServicio"></span></div>
                     <div class="detail-item"><strong>Contacto:</strong> <span id="modal-contacto"></span></div>
                     <div class="detail-item"><strong>Teléfono:</strong> <span id="modal-telefono"></span></div>
                     <div class="detail-item"><strong>Tiene Repuestos:</strong> <span id="modal-tieneRepuestos"></span></div>
@@ -292,14 +341,29 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
+        // Función para formatear monto en pesos chilenos para visualización
+        function displayCurrency(value) {
+            if (value === undefined || value === null || value === '' || isNaN(value)) return 'N/A';
+            const numericValue = parseInt(String(value).replace(/\$|\./g, ''), 10); // Limpia y convierte a número
+            if (isNaN(numericValue)) return 'N/A';
+            return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(numericValue);
+        }
+
         const ui = {
             body: document.documentElement,
             tableBody: document.getElementById('tabla-visor-servicios'),
-            kpi: { total: document.getElementById('kpi-total'), pending: document.getElementById('kpi-pending'), confirmed: document.getElementById('kpi-confirmed'), },
+            kpi: { 
+                total: document.getElementById('kpi-total'), 
+                pending: document.getElementById('kpi-pending'), 
+                confirmed: document.getElementById('kpi-confirmed'),
+                totalAmount: document.getElementById('kpi-total-amount'), // Nuevo KPI
+            },
             modal: {
                 overlay: document.getElementById('service-modal'), closeBtn: document.getElementById('modal-close'),
                 reqNum: document.getElementById('modal-req-num'), cliente: document.getElementById('modal-cliente'), numNV: document.getElementById('modal-numNV'),
                 direccion: document.getElementById('modal-direccion'), vendedor: document.getElementById('modal-vendedor'), estado: document.getElementById('modal-estado'),
+                montoServicio: document.getElementById('modal-montoServicio'), // Nuevo en modal
+                tipoServicio: document.getElementById('modal-tipoServicio'),   // Nuevo en modal
                 contacto: document.getElementById('modal-contacto'), telefono: document.getElementById('modal-telefono'),
                 tieneRepuestos: document.getElementById('modal-tieneRepuestos'), repDespachados: document.getElementById('modal-repDespachados'),
                 fechaProgramacion: document.getElementById('modal-fecha-programacion'), fechaAsignada: document.getElementById('modal-fecha-asignada'),
@@ -310,7 +374,11 @@
             exportBtn: document.getElementById('export-csv-btn'),
             filters: {
                 busqueda: document.getElementById('busqueda'), estado: document.getElementById('filtro-estado'),
-                vendedor: document.getElementById('filtro-vendedor'), repuestos: document.getElementById('filtro-repuestos'),
+                vendedor: document.getElementById('filtro-vendedor'), 
+                tipoServicio: document.getElementById('filtro-tipo-servicio'), // Nuevo filtro
+                fechaAsignadaDesde: document.getElementById('filtro-fecha-asignada-desde'), // Nuevo filtro de fecha
+                fechaAsignadaHasta: document.getElementById('filtro-fecha-asignada-hasta'), // Nuevo filtro de fecha
+                repuestos: document.getElementById('filtro-repuestos'),
                 repDespachados: document.getElementById('filtro-rep-despachados'), btnClear: document.getElementById('btn-limpiar-filtros'),
             },
             headers: document.querySelectorAll('th[data-sort]'),
@@ -321,6 +389,7 @@
         const state = {
             allServices: [],
             filteredServices: [],
+            vendedoresCache: [], // Para almacenar vendedores únicos
             sortConfig: { column: 'timestamp', direction: 'desc' },
             pagination: { currentPage: 1, rowsPerPage: 20 },
             isFirstLoad: true,
@@ -368,12 +437,39 @@
             const f = ui.filters;
             state.filteredServices = state.allServices.filter(s => {
                 const searchStr = f.busqueda.value.toLowerCase();
-                const matchSearch = !searchStr || [s.cliente, s.direccion, s.nomContacto, s.numRequerimiento, s.infoServicio, s.numNV]
+                const matchSearch = !searchStr || [s.cliente, s.direccion, s.nomContacto, s.numRequerimiento, s.infoServicio, s.numNV, String(s.montoServicio || '').toLowerCase(), String(s.tipoServicio || '').toLowerCase()]
                     .some(val => String(val || '').toLowerCase().includes(searchStr));
+                
+                // Filtro múltiple para vendedor
+                const selectedVendedores = Array.from(f.vendedor.options)
+                                             .filter(option => option.selected && option.value !== '')
+                                             .map(option => option.value);
+                const matchVendedor = selectedVendedores.length === 0 || (s.vendedor && selectedVendedores.includes(s.vendedor));
+
+                // Filtro para tipo de servicio
+                const matchTipoServicio = !f.tipoServicio.value || s.tipoServicio === f.tipoServicio.value;
+
+                // Filtro por rango de fechas asignadas
+                let matchFechaAsignada = true;
+                const fechaDesde = f.fechaAsignadaDesde.value;
+                const fechaHasta = f.fechaAsignadaHasta.value;
+
+                if (s.fechaAsignada) {
+                    if (fechaDesde && s.fechaAsignada < fechaDesde) {
+                        matchFechaAsignada = false;
+                    }
+                    if (fechaHasta && s.fechaAsignada > fechaHasta) {
+                        matchFechaAsignada = false;
+                    }
+                } else if (fechaDesde || fechaHasta) { // Si no tiene fecha asignada y hay filtro de fecha, no coincide
+                    matchFechaAsignada = false;
+                }
                 
                 return matchSearch &&
                     (!f.estado.value || s.estado === f.estado.value) &&
-                    (!f.vendedor.value || s.vendedor === f.vendedor.value) &&
+                    matchVendedor && 
+                    matchTipoServicio && 
+                    matchFechaAsignada && // Aplicar el filtro de fecha
                     (!f.repuestos.value || s.tieneRepuestos === f.repuestos.value) &&
                     (!f.repDespachados.value || s.repuestosDespachados === f.repDespachados.value);
             });
@@ -386,12 +482,19 @@
             const { column, direction } = state.sortConfig;
             state.filteredServices.sort((a, b) => {
                 let valA = a[column], valB = b[column];
+
+                // Manejo especial para montoServicio para ordenar como número
+                if (column === 'montoServicio') {
+                    valA = parseInt(String(valA || '0').replace(/\$|\./g, ''), 10);
+                    valB = parseInt(String(valB || '0').replace(/\$|\./g, ''), 10);
+                }
+                
                 if (column === 'timestamp') { valA = a.fechaEdicion || a.timestamp; valB = b.fechaEdicion || b.timestamp; }
                 if (valA?.toDate) valA = valA.toDate(); if (valB?.toDate) valB = valB.toDate();
                 if (valA === undefined || valA === null) return 1;
                 if (valB === undefined || valB === null) return -1;
-                if (typeof valA === 'string') valA = valA.toLowerCase();
-                if (typeof valB === 'string') valB = valB.toLowerCase();
+                if (typeof valA === 'string' && column !== 'montoServicio') valA = valA.toLowerCase(); // No convertir monto a lowerCase
+                if (typeof valB === 'string' && column !== 'montoServicio') valB = valB.toLowerCase(); // No convertir monto a lowerCase
                 if (valA < valB) return direction === 'asc' ? -1 : 1;
                 if (valA > valB) return direction === 'asc' ? 1 : -1;
                 return 0;
@@ -403,6 +506,10 @@
             ui.kpi.total.textContent = source.length;
             ui.kpi.confirmed.textContent = source.filter(s => s.estado === 'Confirmado' || s.estado === 'En Progreso').length;
             ui.kpi.pending.textContent = source.filter(s => s.estado === 'Pendiente').length;
+            
+            // Calcular y mostrar Monto Total de Servicios
+            const totalAmount = source.reduce((sum, s) => sum + (parseInt(String(s.montoServicio || '0').replace(/\$|\./g, ''), 10) || 0), 0);
+            ui.kpi.totalAmount.textContent = displayCurrency(totalAmount);
         }
 
         function renderTable() {
@@ -411,7 +518,7 @@
             const pageServices = state.filteredServices.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
             if (pageServices.length === 0) {
-                ui.tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">No se encontraron resultados.</td></tr>`;
+                ui.tableBody.innerHTML = `<tr><td colspan="12" style="text-align:center;">No se encontraron resultados.</td></tr>`; // Aumentado colspan
                 return;
             }
 
@@ -433,7 +540,7 @@
                     <td>${s.numRequerimiento || 'N/A'}</td>
                     <td>${s.numNV || 'N/A'}</td>
                     <td>${s.cliente || 'N/A'}</td>
-                    <td>${s.vendedor ? s.vendedor.split('@')[0] : 'N/A'}</td>
+                    <td>${displayCurrency(s.montoServicio)}</td> <td>${s.tipoServicio || 'N/A'}</td> <td>${s.vendedor ? s.vendedor.split('@')[0] : 'N/A'}</td>
                     <td>${s.tieneRepuestos || 'N/A'}</td>
                     <td>${s.repuestosDespachados || 'N/A'}</td>
                     <td>${formatDateString(s.fechaAsignada)}</td>
@@ -489,40 +596,67 @@
             ui.headers.forEach(header => {
                 const indicator = header.querySelector('.sort-indicator');
                 if (indicator) {
-                    if (header.dataset.sort === 'timestamp') { // Ocultar indicador para el sort por defecto que ya no es visible
-                         indicator.textContent = '';
-                    } else {
-                        indicator.textContent = header.dataset.sort === state.sortConfig.column ? (state.sortGg.direction === 'asc' ? '▲' : '▼') : '';
-                    }
+                    // El sort por 'timestamp' no tiene columna visible, por lo que su indicador no es necesario
+                    indicator.textContent = header.dataset.sort === state.sortConfig.column ? (state.sortConfig.direction === 'asc' ? '▲' : '▼') : '';
                 }
             });
         }
         
         function populateFilters() {
-            const getUniqueValues = (key) => [...new Set(state.allServices.map(s => s[key]).filter(Boolean))].sort();
-            
-            const currentVendedor = ui.filters.vendedor.value;
-            ui.filters.vendedor.innerHTML = '<option value="">Todos</option>';
-            getUniqueValues('vendedor').forEach(val => ui.filters.vendedor.add(new Option(val.split('@')[0], val)));
-            ui.filters.vendedor.value = currentVendedor;
-
+            // Populate Estado filter (existing logic)
+            const getUniqueStates = [...new Set(state.allServices.map(s => s.estado).filter(Boolean))].sort();
             const currentEstado = ui.filters.estado.value;
             ui.filters.estado.innerHTML = '<option value="">Todos</option>';
-            getUniqueValues('estado').forEach(val => ui.filters.estado.add(new Option(val, val)));
+            getUniqueStates.forEach(val => ui.filters.estado.add(new Option(val, val)));
             ui.filters.estado.value = currentEstado;
+
+            // Populate Vendedor filter (now multiple select)
+            state.vendedoresCache = [...new Set(state.allServices.map(s => s.vendedor).filter(Boolean))].sort();
+            const currentSelectedVendedores = Array.from(ui.filters.vendedor.options).filter(opt => opt.selected).map(opt => opt.value);
+            ui.filters.vendedor.innerHTML = ''; // Clear existing options
+            
+            state.vendedoresCache.forEach(vendedor => {
+                const option = new Option(vendedor.split('@')[0], vendedor);
+                option.selected = currentSelectedVendedores.includes(vendedor); // Re-select previously chosen ones
+                ui.filters.vendedor.add(option);
+            });
+
+            // Populate Tipo de Servicio filter
+            const tiposDeServicio = [
+                "Canal Tradicional", "Proyeccion", "Retail Mantencion",
+                "Retail Asistencia", "Retail Repuestos", "Post Venta", "Montaje"
+            ];
+            const currentTipoServicio = ui.filters.tipoServicio.value;
+            ui.filters.tipoServicio.innerHTML = '<option value="">Todos</option>';
+            tiposDeServicio.forEach(val => ui.filters.tipoServicio.add(new Option(val, val)));
+            ui.filters.tipoServicio.value = currentTipoServicio;
+
+            // Populate Fecha Asignada Desde/Hasta (no dinámico, solo mantener valores)
+            // Values are loaded via loadPreferences() directly into the input fields.
         }
 
         function openModal(service) {
             ui.modal.reqNum.textContent = `Detalles: Req #${service.numRequerimiento || 'N/A'}`;
-            Object.keys(ui.modal).forEach(key => {
-                if(ui.modal[key] && service[key] !== undefined && typeof ui.modal[key].textContent !== 'undefined') ui.modal[key].textContent = service[key] || 'N/A';
-            });
+            // Mapea directamente los campos existentes y sus IDs en el modal
+            ui.modal.cliente.textContent = service.cliente || 'N/A';
+            ui.modal.numNV.textContent = service.numNV || 'N/A';
+            ui.modal.direccion.textContent = service.direccion || 'N/A';
             ui.modal.vendedor.textContent = service.vendedor ? service.vendedor.split('@')[0] : 'N/A';
+            ui.modal.estado.textContent = service.estado || 'N/A';
+            
+            // Nuevos campos del modal
+            ui.modal.montoServicio.textContent = displayCurrency(service.montoServicio);
+            ui.modal.tipoServicio.textContent = service.tipoServicio || 'N/A';
+
+            ui.modal.contacto.textContent = service.nomContacto || 'N/A';
+            ui.modal.telefono.textContent = service.numContacto || 'N/A';
+            ui.modal.tieneRepuestos.textContent = service.tieneRepuestos || 'N/A';
             ui.modal.repDespachados.textContent = service.tieneRepuestos === 'Sí' ? (service.repuestosDespachados || 'Pendiente') : 'N/A';
             ui.modal.fechaProgramacion.textContent = formatDateString(service.fechaProgramacion);
             ui.modal.fechaAsignada.textContent = formatDateString(service.fechaAsignada);
             ui.modal.fechaSolicitud.textContent = formatTimestamp(service.timestamp);
             ui.modal.fechaEdicion.textContent = service.fechaEdicion ? formatTimestamp(service.fechaEdicion) : 'Sin ediciones';
+            ui.modal.infoServicio.textContent = service.infoServicio || 'N/A';
             ui.modal.obsPlanificacion.textContent = service.observacionesPlanificacion || 'Sin observaciones.';
             ui.modal.overlay.classList.add('visible');
         }
@@ -537,11 +671,23 @@
         }
 
         function savePreferences() {
+            const selectedVendedores = Array.from(ui.filters.vendedor.options)
+                                             .filter(option => option.selected)
+                                             .map(option => option.value);
+            
             const prefs = {
                 filters: {
-                    busqueda: ui.filters.busqueda.value, estado: ui.filters.estado.value, vendedor: ui.filters.vendedor.value,
-                    repuestos: ui.filters.repuestos.value, repDespachados: ui.filters.repDespachados.value,
-                }, sortConfig: state.sortConfig, pagination: { currentPage: state.pagination.currentPage }
+                    busqueda: ui.filters.busqueda.value, 
+                    estado: ui.filters.estado.value, 
+                    vendedor: selectedVendedores, // Guardar array de vendedores seleccionados
+                    tipoServicio: ui.filters.tipoServicio.value, 
+                    fechaAsignadaDesde: ui.filters.fechaAsignadaDesde.value, // Guardar fecha desde
+                    fechaAsignadaHasta: ui.filters.fechaAsignadaHasta.value, // Guardar fecha hasta
+                    repuestos: ui.filters.repuestos.value, 
+                    repDespachados: ui.filters.repDespachados.value,
+                }, 
+                sortConfig: state.sortConfig, 
+                pagination: { currentPage: state.pagination.currentPage }
             };
             localStorage.setItem('visorPrefs', JSON.stringify(prefs));
         }
@@ -552,21 +698,45 @@
             ui.themeToggle.checked = savedTheme === 'dark';
             const savedPrefs = JSON.parse(localStorage.getItem('visorPrefs'));
             if (savedPrefs) {
-                Object.keys(savedPrefs.filters).forEach(key => { if(ui.filters[key]) ui.filters[key].value = savedPrefs.filters[key]; });
+                // Load single-value filters
+                ['busqueda', 'estado', 'tipoServicio', 'repuestos', 'repDespachados', 'fechaAsignadaDesde', 'fechaAsignadaHasta'].forEach(key => { 
+                    if(ui.filters[key] && savedPrefs.filters[key] !== undefined) ui.filters[key].value = savedPrefs.filters[key]; 
+                });
+                
+                // Load multiple-select for vendedores: Handled by populateFilters() after options are loaded
+                // The values are stored in savedPrefs.filters.vendedor as an array.
+                // populateFilters will check this array against its options.
+                if (savedPrefs.filters.vendedor && Array.isArray(savedPrefs.filters.vendedor)) {
+                    // Temporarily store selected values until options are populated
+                    ui.filters.vendedor.dataset.preselected = JSON.stringify(savedPrefs.filters.vendedor);
+                }
+
                 state.sortConfig = savedPrefs.sortConfig;
                 state.pagination.currentPage = savedPrefs.pagination.currentPage;
             }
         }
         
         function exportToCSV() {
-            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Sugerida", "Fecha Asignada", "Fecha Creación/Solicitud", "Fecha Última Edición", "Estado", "Observaciones Planificación", "Info. Servicio", "Dirección", "Contacto", "Teléfono"];
+            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Monto Servicio", "Tipo Servicio", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Sugerida", "Fecha Asignada", "Fecha Creación/Solicitud", "Fecha Última Edición", "Estado", "Observaciones Planificación", "Info. Servicio", "Dirección", "Contacto", "Teléfono"]; // Actualizados
             const rows = state.filteredServices.map(s => [
-                s.numRequerimiento, s.numNV, s.cliente, s.vendedor, 
-                s.tieneRepuestos, s.repuestosDespachados, 
-                s.fechaProgramacion, s.fechaAsignada, 
-                formatTimestamp(s.timestamp), s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', 
-                s.estado, s.observacionesPlanificacion, s.infoServicio, 
-                s.direccion, s.nomContacto, s.numContacto
+                s.numRequerimiento, 
+                s.numNV, 
+                s.cliente, 
+                displayCurrency(s.montoServicio), // Formateado para CSV
+                s.tipoServicio, 
+                s.vendedor, 
+                s.tieneRepuestos, 
+                s.repuestosDespachados, 
+                s.fechaProgramacion, 
+                s.fechaAsignada, 
+                formatTimestamp(s.timestamp), 
+                s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', 
+                s.estado, 
+                s.observacionesPlanificacion, 
+                s.infoServicio, 
+                s.direccion, 
+                s.nomContacto, 
+                s.numContacto
             ].map(val => `"${String(val || '').replace(/"/g, '""')}"`));
             
             const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -579,15 +749,35 @@
         }
 
         function addEventListeners() {
-            Object.values(ui.filters).forEach(el => el.addEventListener('input', () => { state.pagination.currentPage = 1; applyFiltersAndRender(); }));
+            // General filter change listener (for single-value selects and text input)
+            ['busqueda', 'estado', 'tipoServicio', 'repuestos', 'repDespachados', 'fechaAsignadaDesde', 'fechaAsignadaHasta'].forEach(id => { // Se añaden los nuevos filtros de fecha
+                ui.filters[id].addEventListener('input', () => { 
+                    state.pagination.currentPage = 1; 
+                    applyFiltersAndRender(); 
+                });
+            });
+
+            // Specific listener for multi-select vendedor filter
+            ui.filters.vendedor.addEventListener('change', () => {
+                state.pagination.currentPage = 1;
+                applyFiltersAndRender();
+            });
+
             ui.filters.btnClear.addEventListener('click', () => { 
                 ui.filters.busqueda.value = '';
                 ui.filters.estado.value = '';
-                ui.filters.vendedor.value = '';
+                // Clear all selected options in multiple select
+                Array.from(ui.filters.vendedor.options).forEach(option => {
+                    option.selected = false;
+                });
+                ui.filters.tipoServicio.value = '';
+                ui.filters.fechaAsignadaDesde.value = ''; // Limpiar campo fecha desde
+                ui.filters.fechaAsignadaHasta.value = ''; // Limpiar campo fecha hasta
                 ui.filters.repuestos.value = '';
                 ui.filters.repDespachados.value = '';
                 applyFiltersAndRender(); 
             });
+
             ui.headers.forEach(header => header.addEventListener('click', () => {
                 const newColumn = header.dataset.sort;
                 if (!newColumn) return;
