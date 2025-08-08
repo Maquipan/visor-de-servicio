@@ -3,394 +3,314 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendario de Técnicos</title>
+    <title>Dashboard de Control de Servicios (En Vivo)</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
         :root {
             --font-main: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
             --transition-speed: 0.3s;
         }
+
         [data-theme="dark"] {
             --bg-primary: #1a1b26; --bg-secondary: #24283b; --bg-tertiary: #414868;
             --text-primary: #c0caf5; --text-secondary: #a9b1d6; --accent: #7dcfff;
-            --accent-glow: rgba(125, 207, 255, 0.3); --border-color: #3b3f51;
-            --success: #9ece6a; --pending: #e0af68; --danger: #f7768e; --in-progress: #7aa2f7;
+            --accent-glow: rgba(125, 207, 255, 0.2); --border-color: #3b3f51;
+            --success: #9ece6a; --pending: #e0af68; --danger: #f7768e;
             --modal-bg: rgba(36, 40, 59, 0.85);
-            --shadow-color: rgba(0,0,0,0.4);
+            --highlight-bg: rgba(125, 207, 255, 0.25);
         }
+
         [data-theme="light"] {
             --bg-primary: #f0f2f5; --bg-secondary: #ffffff; --bg-tertiary: #e9ecef;
             --text-primary: #212529; --text-secondary: #495057; --accent: #007bff;
-            --accent-glow: rgba(0, 123, 255, 0.2); --border-color: #dee2e6;
-            --success: #28a745; --pending: #ffc107; --danger: #dc3545; --in-progress: #17a2b8;
+            --accent-glow: rgba(0, 123, 255, 0.15); --border-color: #dee2e6;
+            --success: #28a745; --pending: #ffc107; --danger: #dc3545;
             --modal-bg: rgba(255, 255, 255, 0.85);
-            --shadow-color: rgba(0,0,0,0.1);
+            --highlight-bg: rgba(0, 123, 255, 0.15);
         }
+
         *, *::before, *::after { box-sizing: border-box; }
+
         body {
             font-family: var(--font-main); margin: 0;
             background-color: var(--bg-primary); color: var(--text-primary);
             transition: background-color var(--transition-speed), color var(--transition-speed);
         }
-        .container { max-width: 98%; margin: 0 auto; padding: 1rem; }
+
+        .container { max-width: 1800px; margin: 0 auto; padding: 1rem 1.5rem; }
+
         .header-controls {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 0.8rem 1.2rem; background-color: var(--bg-secondary);
-            border-radius: 12px; margin-bottom: 1rem; border: 1px solid var(--border-color);
+            padding: 1rem; background-color: var(--bg-secondary);
+            border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border-color);
         }
-        .header-controls h1 { margin: 0; font-size: 1.3rem; color: var(--text-primary); font-weight: 600; }
+        .header-controls h1 { margin: 0; font-size: 1.5rem; color: var(--text-primary); font-weight: 600; }
+        .action-buttons { display: flex; align-items: center; gap: 1rem; }
+
+        .theme-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .theme-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--bg-tertiary); transition: var(--transition-speed); border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: var(--transition-speed); border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
         .icon-btn {
             background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-secondary);
-            padding: 0.4rem 0.8rem; border-radius: 8px; cursor: pointer; display: flex;
-            align-items: center; gap: 0.5rem; font-weight: 600; transition: all var(--transition-speed);
+            padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex;
+            align-items: center; gap: 0.5rem; font-weight: 600;
+            transition: all var(--transition-speed);
         }
-        .icon-btn:hover, .icon-btn.active { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
-        .card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; }
+        .icon-btn:hover { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+        .icon-btn svg { width: 16px; height: 16px; }
 
-        .calendar-controls { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
-        #date-picker { padding: 0.4rem; background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 8px; }
-        [data-theme="dark"] #date-picker { color-scheme: dark; }
-
-        /* --- Filter Styles --- */
-        #filter-controls { text-align: center; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem; }
-        #filter-options { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 1rem; }
-        .filter-checkbox { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
-        .filter-checkbox input { accent-color: var(--accent); }
-        /* Estilo para el campo de búsqueda */
-        #search-service-input {
-            width: auto; /* Permite que se ajuste */
-            min-width: 200px;
-            padding: 0.6rem 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
+        .dashboard {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem; margin-bottom: 1.5rem;
         }
-        #search-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
+        .kpi-card {
+            background: var(--bg-secondary); padding: 1.5rem; border-radius: 12px;
+            border: 1px solid var(--border-color); border-left: 5px solid var(--accent);
+            transition: transform var(--transition-speed), box-shadow var(--transition-speed);
         }
-        .search-action-buttons {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
+        .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+        .kpi-card .value { font-size: 2.5rem; font-weight: 700; color: var(--text-primary); }
+        .kpi-card .label { font-size: 1rem; color: var(--text-secondary); margin-top: 0.5rem; }
+        .kpi-card.success { border-left-color: var(--success); }
+        .kpi-card.pending { border-left-color: var(--pending); }
+        /* Estilo para el KPI de Monto Total */
+        .kpi-card.total-amount { border-left-color: var(--accent); } 
+        /* Nuevo estilo para montos */
+        .kpi-card.pending-amount { border-left-color: var(--pending); } 
+        .kpi-card.confirmed-amount { border-left-color: var(--success); } 
 
 
-        /* --- Daily View --- */
-        #daily-view-container .calendar-scroll-container {
-            display: flex; overflow: auto; background-color: var(--bg-secondary);
-            border-radius: 12px; border: 1px solid var(--border-color); position: relative; max-height: 75vh;
-        }
-        .time-axis {
-            min-width: 80px; max-width: 80px; flex-shrink: 0; font-size: 0.75rem; color: var(--text-secondary);
-            border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
-            position: sticky; left: 0; z-index: 35; background-color: var(--bg-secondary);
-        }
-        .time-axis-header {
-            display: flex; align-items: center; justify-content: center; padding: 0.6rem;
-            border-bottom: 2px solid var(--accent); font-weight: 600; font-size: 0.8rem;
-            color: var(--text-primary); position: sticky; top: 0; z-index: 36;
-            background-color: var(--bg-secondary); height: 53px;
-        }
-        .time-slot { height: 50px; border-bottom: 1px solid var(--border-color); box-sizing: border-box; }
-        .time-axis .time-slot { padding-right: 8px; text-align: right; user-select: none; }
-        .time-axis .time-slot span { position: relative; top: -0.6em; background-color: var(--bg-secondary); padding: 0 4px; }
-        .calendar-content { display: flex; flex-direction: column; flex-grow: 1; }
-        .technician-headers-container { display: flex; position: sticky; top: 0; z-index: 30; background-color: var(--bg-secondary); }
-        .technician-header {
-            flex: 1 1 200px; min-width: 200px; text-align: center; padding: 0.6rem;
-            border-bottom: 2px solid var(--accent); font-weight: 600; color: var(--text-primary);
-            border-right: 1px solid var(--border-color); font-size: 0.8rem;
-        }
-        .technician-columns-container { display: flex; flex-grow: 1; position: relative; }
-        .technician-column { flex: 1 1 200px; min-width: 200px; border-right: 1px solid var(--border-color); position: relative; }
-        .current-time-indicator { position: absolute; left: 80px; right: 0; height: 2px; background-color: var(--danger); z-index: 25; pointer-events: none; }
-        .current-time-indicator::before {
-            content: ''; position: absolute; left: -5px; top: 50%; transform: translateY(-50%);
-            width: 10px; height: 10px; border-radius: 50%; background-color: var(--danger); border: 2px solid var(--bg-secondary);
-        }
-        .event-block, .travel-block {
-            position: absolute; right: 5%; border-radius: 4px; padding: 0.2rem 0.5rem;
-            cursor: pointer; overflow: hidden; transition: all 0.2s ease-in-out;
-            box-shadow: 0 2px 5px var(--shadow-color); font-size: 0.8rem;
-        }
-        .event-block:hover, .travel-block:hover { transform: translateY(-2px); z-index: 50 !important; box-shadow: 0 6px 15px var(--shadow-color); }
-        .event-block { color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); z-index: 20; }
-        .event-block strong { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.85rem; }
-        .event-block span { opacity: 0.9; font-size: 0.75rem;}
-        .travel-block { z-index: 19; color: var(--text-primary); }
-        .event-block.status-Confirmado { background-color: var(--success); }
-        .event-block.status-Pendiente { background-color: var(--pending); }
-        .event-block.status-Esperando-Repuestos { background-color: var(--in-progress); }
-        .event-block.status-Otros { background-color: var(--bg-tertiary); color: var(--text-primary); }
-        .travel-block.status-Confirmado { background-color: rgba(158, 206, 106, 0.3); }
-        .travel-block.status-Pendiente { background-color: rgba(224, 175, 104, 0.3); }
-        .travel-block.status-Esperando-Repuestos { background-color: rgba(122, 162, 247, 0.3); }
-        .travel-block.status-Otros { background-color: rgba(65, 72, 104, 0.3); }
+        .card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .card h2 { margin-top: 0; margin-bottom: 1.5rem; font-size: 1.2rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
         
-        /* --- NUEVOS COLORES PASTEL PARA TIPOS DE SERVICIO (PALETA SUAVE) --- */
-        /* Vista Diaria - Color de Fondo */
-        .event-block.type-Canal-Tradicional { background-color: #B0E0E6; } /* PowderBlue */
-        .event-block.type-Proyeccion { background-color: #98FB98; } /* PaleGreen */
-        .event-block.type-Retail-Mantencion { background-color: #F8BBD0; } /* Pink (Light) */
-        .event-block.type-Retail-Asistencia { background-color: #FFECB3; } /* Light Yellow */
-        .event-block.type-Retail-Repuestos { background-color: #E6E6FA; } /* Lavender */
-        .event-block.type-Post-Venta { background-color: #C1E1C1; } /* Light Green */
-        .event-block.type-Montaje { background-color: #FFE0B2; } /* PeachPuff */
-
-        /* Bloques de Traslado - Vista Diaria (Versiones transparentes de los colores de fondo anteriores) */
-        .travel-block.type-Canal-Tradicional { background-color: rgba(176, 224, 230, 0.3); }
-        .travel-block.type-Proyeccion { background-color: rgba(152, 251, 152, 0.3); }
-        .travel-block.type-Retail-Mantencion { background-color: rgba(255, 250, 205, 0.3); }
-        .travel-block.type-Retail-Asistencia { background-color: rgba(255, 182, 193, 0.3); }
-        .travel-block.type-Retail-Repuestos { background-color: rgba(221, 160, 221, 0.3); }
-        .travel-block.type-Post-Venta { background-color: rgba(193, 225, 193, 0.3); }
-        .travel-block.type-Montaje { background-color: rgba(255, 218, 185, 0.3); }
-
-        /* Ajustes para Tema Claro para mejor contraste (opcional, pero recomendado) */
-        [data-theme="light"] .event-block.type-Canal-Tradicional { background-color: #ADD8E6; } /* LightBlue */
-        [data-theme="light"] .event-block.type-Proyeccion { background-color: #9ACD32; } /* YellowGreen */
-        [data-theme="light"] .event-block.type-Retail-Mantencion { background-color: #F0E68C; } /* Khaki */
-        [data-theme="light"] .event-block.type-Retail-Asistencia { background-color: #F08080; } /* LightCoral */
-        [data-theme="light"] .event-block.type-Retail-Repuestos { background-color: #C6A2E8; } /* Slightly darker purple for contrast */
-        [data-theme="light"] .event-block.type-Post-Venta { background-color: #87CEFA; } /* LightSkyBlue */
-        [data-theme="light"] .event-block.type-Montaje { background-color: #F4A460; } /* SandyBrown */
-
-        [data-theme="light"] .travel-block.type-Canal-Tradicional { background-color: rgba(173, 216, 230, 0.3); }
-        [data-theme="light"] .travel-block.type-Proyeccion { background-color: rgba(154, 205, 50, 0.2); }
-        [data-theme="light"] .travel-block.type-Retail-Mantencion { background-color: rgba(240, 230, 140, 0.2); }
-        [data-theme="light"] .travel-block.type-Retail-Asistencia { background-color: rgba(240, 128, 128, 0.2); }
-        [data-theme="light"] .travel-block.type-Retail-Repuestos { background-color: rgba(198, 162, 232, 0.2); }
-        [data-theme="light"] .travel-block.type-Post-Venta { background-color: rgba(135, 206, 250, 0.2); }
-        [data-theme="light"] .travel-block.type-Montaje { background-color: rgba(244, 164, 96, 0.2); }
-        /* --- FIN NUEVOS COLORES PASTEL --- */
-
-
-        /* --- New Weekly View --- */
-        .week-grid-container {
-            display: grid;
-            grid-template-columns: 150px repeat(7, 1fr); /* Técnicos | 7 Días (ancho igual) */
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow: auto; 
-            background-color: var(--bg-secondary);
-            max-height: 75vh;
+        .filtros-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem 1.5rem; align-items: flex-end; }
+        .filtro-item label { font-weight: 600; margin-bottom: 0.5rem; font-size: 0.875rem; display: block; }
+        .filtro-item input, .filtro-item select {
+            width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color);
+            border-radius: 8px; font-size: 0.9rem; background: var(--bg-tertiary); color: var(--text-primary);
         }
-        .week-grid-header, .week-grid-tech-cell, .week-grid-day-cell {
-            padding: 0.6rem;
-            border-right: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-        }
-        .week-grid-header {
-            text-align: center; font-weight: 600; color: var(--text-primary);
-            background-color: var(--bg-tertiary);
-            position: sticky; top: 0; z-index: 10;
-        }
-        .week-grid-tech-cell {
-            font-weight: 600; color: var(--text-primary);
-            background-color: var(--bg-tertiary);
-            position: sticky; left: 0; z-index: 5;
-        }
-        .week-grid-day-cell {
-            min-height: 100px;
+        .filtro-item input:focus, .filtro-item select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+        /* Estilos para el select multiple de vendedores */
+        .filtro-item select[multiple] {
+            min-height: 80px; /* Suficiente altura para ver varias opciones */
             padding: 0.5rem;
-            min-width: 0; /* CRUCIAL FIX: Permite que las columnas se encojan y respeten el tamaño de la cuadrícula */
+            background-image: none; /* Eliminar flecha si no es necesaria para multiple */
+            overflow-y: auto; /* Para cuando haya muchas opciones */
         }
-        .week-event-item {
-            background-color: var(--bg-tertiary); /* Color de fondo base, se mantiene */
-            /* ¡CORRECCIÓN CLAVE AQUÍ! La regla de color del borde izquierdo para los tipos
-               de servicio específicos debe ser más específica para sobrescribir esto.
-               La reubicación de las reglas type- al final de esta sección de CSS
-               o el uso de !important (si la reubicación no funciona) es crucial. */
-            border-left: 5px solid var(--text-secondary); /* Color de borde por defecto si no hay tipo */
-            padding: 0.4rem 0.6rem;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-            box-shadow: 0 1px 3px var(--shadow-color);
-            transition: transform 0.2s, box-shadow 0.2s;
+        .filtro-item select[multiple] option {
+            padding: 5px 10px;
         }
-        .week-event-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px var(--shadow-color);
+        .filtro-item select[multiple] option:checked {
+            background-color: var(--accent);
+            color: var(--bg-secondary);
         }
-        .week-event-item strong {
-            display: block;
-            font-weight: 600;
-            color: var(--text-primary);
-            font-size: 0.8rem;
+        
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; position: relative; }
+        th .sort-indicator { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); opacity: 0.6; }
+        tbody tr:hover { background-color: var(--bg-tertiary); }
+        
+        @keyframes fadeOutHighlight {
+            from { background-color: var(--highlight-bg); }
+            to { background-color: transparent; }
+        }
+        tr.recently-updated {
+            animation: fadeOutHighlight 5s ease-out;
+        }
+
+        td {
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            vertical-align: middle;
         }
-        .week-event-item span {
-            display: block;
-            color: var(--text-secondary);
-            margin-top: 0.2rem;
-        }
-        /* Estas clases de estado siguen siendo importantes para el color de borde,
-           pero las clases de tipo de servicio deben tener más prioridad. */
-        .week-event-item.status-Confirmado { border-left-color: var(--success); }
-        .week-event-item.status-Pendiente { border-left-color: var(--pending); }
-        .week-event-item.status-Esperando-Repuestos { border-left-color: var(--in-progress); }
         
-        /* ¡LAS REGLAS DE COLOR POR TIPO DE SERVICIO PARA LA VISTA SEMANAL DEBEN IR AQUÍ ABAJO
-           para asegurar que tengan mayor especificidad o se carguen después de las genéricas! */
-        /* Vista Semanal - Color de Borde Izquierdo */
-        /* Hacemos la regla más específica usando 'body[data-theme="dark"]' o 'body[data-theme="light"]'
-           y el tipo de clase. Esto le da prioridad. */
-        body[data-theme="dark"] .week-event-item.type-Canal-Tradicional { border-left-color: #AEC6CF !important; } /* PowderBlue */
-        body[data-theme="dark"] .week-event-item.type-Proyeccion { border-left-color: #B2DFDB !important; } /* Aquamarine */
-        body[data-theme="dark"] .week-event-item.type-Retail-Mantencion { border-left-color: #F8BBD0 !important; } /* Pink (Light) */
-        body[data-theme="dark"] .week-event-item.type-Retail-Asistencia { border-left-color: #FFECB3 !important; } /* Light Yellow */
-        body[data-theme="dark"] .week-event-item.type-Retail-Repuestos { border-left-color: #E6E6FA !important; } /* Lavender */
-        body[data-theme="dark"] .week-event-item.type-Post-Venta { border-left-color: #C1E1C1 !important; } /* Light Green */
-        body[data-theme="dark"] .week-event-item.type-Montaje { border-left-color: #FFE0B2 !important; } /* PeachPuff */
-
-        /* Ajustes de Tema Claro para bordes semanales (¡también más específicos!) */
-        body[data-theme="light"] .week-event-item.type-Canal-Tradicional { border-left-color: #ADD8E6 !important; }
-        body[data-theme="light"] .week-event-item.type-Proyeccion { border-left-color: #9ACD32 !important; }
-        body[data-theme="light"] .week-event-item.type-Retail-Mantencion { border-left-color: #F0E68C !important; }
-        body[data-theme="light"] .week-event-item.type-Retail-Asistencia { border-left-color: #F08080 !important; }
-        body[data-theme="light"] .week-event-item.type-Retail-Repuestos { border-left-color: #C6A2E8 !important; }
-        body[data-theme="light"] .week-event-item.type-Post-Venta { border-left-color: #87CEFA !important; }
-        body[data-theme="light"] .week-event-item.type-Montaje { border-left-color: #FFA07A !important; }
-        
-        /* --- FIN DE LAS REGLAS DE COLOR POR TIPO DE SERVICIO PARA LA VISTA SEMANAL --- */
-
-
-        /* --- Modal Corrections --- */
-        .modal-overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: var(--modal-bg); 
-            display: flex; justify-content: center; align-items: center; 
-            z-index: 1000; 
-            opacity: 0; visibility: hidden; 
-            transition: opacity var(--transition-speed); 
-            overflow-y: auto; /* Permite scroll del overlay si el modal es muy grande */
+        td.observation-cell {
+            white-space: normal;
+            min-width: 250px;
+            max-width: 350px;
         }
+
+        .results-footer { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; flex-wrap: wrap; gap: 1rem; }
+        #results-info { font-size: 0.9rem; color: var(--text-secondary); }
+        .pagination-controls button {
+            background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-secondary);
+            padding: 0.5rem 0.8rem; margin: 0 2px; border-radius: 6px; cursor: pointer; transition: all var(--transition-speed);
+        }
+        .pagination-controls button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+        .pagination-controls button.active { background-color: var(--accent); color: var(--bg-secondary); border-color: var(--accent); font-weight: bold; }
+        .pagination-controls button:disabled { cursor: not-allowed; opacity: 0.5; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity var(--transition-speed); }
         .modal-overlay.visible { opacity: 1; visibility: visible; }
-        
-        .modal-container { 
-            background: var(--modal-bg); 
-            border: 1px solid var(--border-color); 
-            border-radius: 16px; 
-            width: 90%; /* Ancho base del modal */
-            max-width: 800px; /* Ancho máximo para pantallas grandes */
-            max-height: 90vh; /* Altura máxima para el modal, usa 'vh' para viewport height */
-            padding: 2rem; 
-            transform: scale(0.9); 
-            transition: transform var(--transition-speed); 
-            overflow-y: auto; /* IMPORTANTE: Permite scroll dentro del contenido del modal */
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5); /* Sombra para destacarlo */
-        }
-        /* Eliminar backdrop-filter si causa problemas visuales con el scroll */
-        .modal-container { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-
+        .modal-container { background: var(--modal-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 700px; padding: 2rem; transform: scale(0.9); transition: transform var(--transition-speed); }
         .modal-overlay.visible .modal-container { transform: scale(1); }
-        
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem; }
         .modal-header h2 { margin: 0; color: var(--accent); }
-        .modal-close-btn { background: none; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer; padding: 0; }
-        
-        .modal-content .detail-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 1.25rem; 
-        }
+        .modal-close-btn { background: none; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer; }
+        .modal-content .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; }
         .modal-content .detail-item strong { display: block; color: var(--text-secondary); margin-bottom: 0.25rem; font-size: 0.875rem; text-transform: uppercase; }
         .modal-content .detail-item span { color: var(--text-primary); font-size: 1rem; }
         .modal-content .full-width { grid-column: 1 / -1; }
+        #modal-obs-planificacion { display: block; white-space: pre-wrap; background-color: var(--bg-primary); padding: 0.5rem; border-radius: 6px; margin-top: 0.5rem; max-height: 150px; overflow-y: auto; font-style: italic; }
 
-        /* Media queries para el modal en pantallas pequeñas */
+        /* Estilos específicos para inputs de fecha */
+        [data-theme="dark"] input[type="date"] {
+            color-scheme: dark; /* Asegura que el calendario emergente sea oscuro */
+        }
+
+        @media (max-width: 992px) {
+            .filtros-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+            .table-container { -webkit-overflow-scrolling: touch; }
+        }
         @media (max-width: 768px) {
-            .modal-container {
-                width: 95%; /* Un poco más de ancho en móvil */
-                max-width: none; /* No restringir el max-width en móviles */
-                padding: 1rem; /* Menos padding */
-                margin: 10px; /* Pequeño margen para no pegarse a los bordes */
-            }
-            .modal-content .detail-grid {
-                grid-template-columns: 1fr; /* Una columna para el grid en móviles */
-                gap: 0.8rem; /* Menos espacio entre ítems */
-            }
-            .search-action-buttons {
-                flex-direction: column; /* Apilar botones de búsqueda en móvil */
-            }
+            .container { padding: 1rem; }
+            .filtros-grid { grid-template-columns: 1fr; }
+            th, td { padding: 0.8rem 0.6rem; font-size: 0.85rem; }
+            .results-footer { flex-direction: column; align-items: center; }
+            .modal-container { width: 95%; padding: 1.5rem; }
+        }
+        @media (max-width: 600px) {
+            .header-controls { flex-direction: column; gap: 1rem; align-items: flex-start; }
+            .action-buttons { width: 100%; justify-content: space-between; }
         }
     </style>
 </head>
 <body>
-    <div id="login-container" style="display: flex; align-items: center; justify-content: center; height: 100vh; padding: 1.5rem;">
-         <div class="card" style="max-width: 450px; width: 100%;"><h2>Acceso de Planificador</h2><form id="login-form"><label for="email">Correo Electrónico</label><input type="email" id="email" required><label for="password" style="margin-top:1rem;">Contraseña</label><input type="password" id="password" required><button type="submit" style="margin-top: 1rem;">Acceder</button></form></div>
-    </div>
-    <div id="main-content" style="display: none;">
-        <div class="container">
-             <div class="header-controls">
-                <h1 id="header-title">Calendario de Técnicos</h1>
-                <div>
-                     <button id="view-day-btn" class="icon-btn active">Día</button>
-                     <button id="view-week-btn" class="icon-btn">Semana</button>
-                     <button id="autoplay-btn" class="icon-btn" style="margin-left: 1rem;">Autoplay</button>
-                     <button id="logout-button" class="icon-btn" style="margin-left: 1rem;">Cerrar Sesión</button>
-                </div>
-             </div>
-            <div class="card">
-                <div class="calendar-controls">
-                    <button id="prev-btn" class="icon-btn">‹ Anterior</button>
-                    <button id="today-btn" class="icon-btn">Hoy</button>
-                    <div><label for="date-picker">Seleccionar Fecha</label><input type="date" id="date-picker"></div>
-                    <button id="next-btn" class="icon-btn">Siguiente ›</button>
-                </div>
-                <h3 id="current-date-display" style="text-align:center; margin:0; font-size: 1.25rem; font-weight: 600; color: var(--accent);"></h3>
-                <div id="filter-controls">
-                    <button id="toggle-filter-btn" class="icon-btn">Filtro por Zona</button>
-                    <div id="filter-options" style="display: none;">
-                        </div>
-                </div>
-                <div style="text-align: center; margin-top: 1rem;">
-                    <label for="search-service-input" style="display: none;">Buscar Servicio</label>
-                    <input type="search" id="search-service-input" placeholder="Buscar por Nº Req, Nº NV o Cliente...">
-                    <div class="search-action-buttons">
-                        <button id="search-go-btn" class="icon-btn" style="width: 100%; justify-content: center;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.085.12l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.12-.085zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
-                            Buscar
-                        </button>
-                        <button id="search-next-btn" class="icon-btn" style="width: 100%; justify-content: center; display: none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"/></svg>
-                            Siguiente
-                        </button>
-                    </div>
-                </div>
-                </div>
-            <div id="daily-view-container">
-                 <div class="calendar-scroll-container">
-                    <div id="current-time-indicator" style="display: none;"></div>
-                    <div id="time-axis" class="time-axis">
-                        <div class="time-axis-header">Hora</div>
-                        <div id="time-slots-wrapper"></div>
-                    </div>
-                    <div class="calendar-content">
-                        <div id="technician-headers-container" class="technician-headers-container"></div>
-                        <div id="technician-columns-container" class="technician-columns-container"></div>
-                    </div>
+    
+    <div class="container">
+        <div class="header-controls">
+            <h1>Panel de Control (En Vivo)</h1>
+            <div class="action-buttons">
+                <button class="icon-btn" id="export-csv-btn">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 7.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L9 10.586V3a1 1 0 112 0v7.586l2.707-2.707a1 1 0 011.414 0zM4 14a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z"></path></svg>
+                    Exportar
+                </button>
+                <div class="theme-switch-wrapper">
+                    <label class="theme-switch">
+                        <input type="checkbox" id="theme-toggle">
+                        <span class="slider"></span>
+                    </label>
                 </div>
             </div>
-            <div id="weekly-view-container" style="display:none;">
+        </div>
+
+        <div class="dashboard">
+            <div class="kpi-card">
+                <div class="value" id="kpi-total">-</div>
+                <div class="label">Total Servicios</div>
+            </div>
+            <div class="kpi-card pending">
+                <div class="value" id="kpi-pending">-</div>
+                <div class="label">Servicios Pendientes</div>
+            </div>
+            <div class="kpi-card success">
+                <div class="value" id="kpi-confirmed">-</div>
+                <div class="label">Servicios Confirmados</div>
+            </div>
+            <div class="kpi-card total-amount">
+                <div class="value" id="kpi-total-amount">-</div>
+                <div class="label">Monto Total Servicios</div>
+            </div>
+            <div class="kpi-card pending-amount">
+                <div class="value" id="kpi-pending-amount">-</div>
+                <div class="label">Monto Pend. / Esperando Rep.</div>
+            </div>
+            <div class="kpi-card confirmed-amount">
+                <div class="value" id="kpi-confirmed-amount">-</div>
+                <div class="label">Monto Confirmado / En Progreso</div>
+            </div>
+            </div>
+
+        <div class="card">
+            <h2>Filtros</h2>
+            <div class="filtros-grid">
+                <div class="filtro-item" style="grid-column: 1 / -1; @media (min-width: 992px) { grid-column: 1 / 3; }">
+                    <label for="busqueda">Búsqueda General</label>
+                    <input type="text" id="busqueda" placeholder="Buscar por cliente, req, etc...">
                 </div>
+                <div class="filtro-item">
+                    <label for="filtro-estado">Estado</label>
+                    <select id="filtro-estado"><option value="">Todos</option></select>
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-vendedor">Vendedor(es)</label>
+                    <select id="filtro-vendedor" multiple size="3"></select> </div>
+                <div class="filtro-item">
+                    <label for="filtro-tipo-servicio">Tipo de Servicio</label>
+                    <select id="filtro-tipo-servicio">
+                        <option value="">Todos</option>
+                        <option value="Canal Tradicional">Canal Tradicional</option>
+                        <option value="Proyeccion">Proyección</option>
+                        <option value="Retail Mantencion">Retail Mantención</option>
+                        <option value="Retail Asistencia">Retail Asistencia</option>
+                        <option value="Retail Repuestos">Retail Repuestos</option>
+                        <option value="Post Venta">Post Venta</option>
+                        <option value="Montaje">Montaje</option>
+                    </select>
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-fecha-asignada-desde">Fecha Asignada Desde</label>
+                    <input type="date" id="filtro-fecha-asignada-desde">
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-fecha-asignada-hasta">Fecha Asignada Hasta</label>
+                    <input type="date" id="filtro-fecha-asignada-hasta">
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-repuestos">Tiene Repuestos</label>
+                    <select id="filtro-repuestos"><option value="">Todos</option><option value="Sí">Sí</option><option value="No">No</option></select>
+                </div>
+                <div class="filtro-item">
+                    <label for="filtro-rep-despachados">Rep. Despachados</label>
+                    <select id="filtro-rep-despachados"><option value="">Todos</option><option value="Sí">Sí</option><option value="No">No</option><option value="Pendiente">Pendiente</option></select>
+                </div>
+                <div class="filtro-item">
+                    <label>&nbsp;</label>
+                    <button id="btn-limpiar-filtros" class="icon-btn" style="background-color: var(--danger); color: white; border-color: var(--danger); justify-content: center;">Limpiar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+             <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-sort="numRequerimiento">Nº Req.<span class="sort-indicator"></span></th>
+                            <th data-sort="numNV">Nº NV<span class="sort-indicator"></span></th>
+                            <th data-sort="cliente">Cliente<span class="sort-indicator"></span></th>
+                            <th data-sort="montoServicio">Monto<span class="sort-indicator"></span></th> <th data-sort="tipoServicio">Tipo Servicio<span class="sort-indicator"></span></th> <th data-sort="vendedor">Vendedor<span class="sort-indicator"></span></th>
+                            <th data-sort="tieneRepuestos">Tiene Rep.<span class="sort-indicator"></span></th>
+                            <th data-sort="repuestosDespachados">Rep. Desp.<span class="sort-indicator"></span></th>
+                            <th data-sort="fechaAsignada">F. Asignada<span class="sort-indicator"></span></th>
+                            <th data-sort="estado">Estado<span class="sort-indicator"></span></th>
+                            <th data-sort="observacionesPlanificacion">Obs. Planif.<span class="sort-indicator"></span></th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-visor-servicios"></tbody>
+                </table>
+            </div>
+            <div class="results-footer">
+                <span id="results-info"></span>
+                <div id="pagination-controls" class="pagination-controls"></div>
+            </div>
         </div>
     </div>
+
     <div class="modal-overlay" id="service-modal">
         <div class="modal-container">
             <div class="modal-header">
                 <h2 id="modal-req-num"></h2>
-                <button class="modal-close-btn" data-modal-id="service-modal">&times;</button>
+                <button class="modal-close-btn" id="modal-close">&times;</button>
             </div>
             <div class="modal-content">
                 <div class="detail-grid">
@@ -401,18 +321,19 @@
                     <div class="detail-item"><strong>Estado Actual:</strong> <span id="modal-estado"></span></div>
                     <div class="detail-item"><strong>Monto Servicio:</strong> <span id="modal-montoServicio"></span></div>
                     <div class="detail-item"><strong>Tipo Servicio:</strong> <span id="modal-tipoServicio"></span></div>
-                    <div class="detail-item"><strong>Técnico Asignado:</strong> <span id="modal-tecnico"></span></div>
-                    <div class="detail-item"><strong>Fecha Asignada:</strong> <span id="modal-fechaAsignada"></span></div>
-                    <div class="detail-item"><strong>Hora Traslado:</strong> <span id="modal-horaTraslado"></span></div>
-                    <div class="detail-item"><strong>Hora Inicio:</strong> <span id="modal-horaInicio"></span></div>
-                    <div class="detail-item"><strong>Hora Término:</strong> <span id="modal-horaTermino"></span></div>
                     <div class="detail-item"><strong>Contacto:</strong> <span id="modal-contacto"></span></div>
                     <div class="detail-item"><strong>Teléfono:</strong> <span id="modal-telefono"></span></div>
                     <div class="detail-item"><strong>Tiene Repuestos:</strong> <span id="modal-tieneRepuestos"></span></div>
                     <div class="detail-item"><strong>Repuestos Despachados:</strong> <span id="modal-repDespachados"></span></div>
+                    <div class="detail-item"><strong>Fecha Sugerida (Ejec.):</strong> <span id="modal-fecha-programacion"></span></div>
+                    <div class="detail-item"><strong>Fecha Asignada (Planif.):</strong> <span id="modal-fecha-asignada"></span></div>
                     <div class="detail-item"><strong>Fecha Creación:</strong> <span id="modal-fecha-solicitud"></span></div>
                     <div class="detail-item"><strong>Última Edición:</strong> <span id="modal-fecha-edicion"></span></div>
                     <div class="detail-item full-width"><strong>Info. Servicio:</strong> <span id="modal-info-servicio"></span></div>
+                    <div class="detail-item full-width">
+                        <strong>📝 Observaciones de Planificación:</strong>
+                        <span id="modal-obs-planificacion"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -424,688 +345,471 @@
           authDomain: "control-de-servicios-b8e34.firebaseapp.com",
           projectId: "control-de-servicios-b8e34",
         };
+        const viewerEmail = "visor@maquipan.cl";
+        const viewerPassword = "Maquipan2025..";
+
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        const ZONAS = {
-            'Iquique': ['Héctor Loaiza'],
-            'Antofagasta': ['Enzo Rodriguez', 'Beato Paula'],
-            'La Serena': ['Julian Cantillanes', 'Julián Herrera'],
-            'Valparaiso': ['Claudio López', 'Alejandro Mena', 'Juan Manuel Chandía', 'Enrico Ramírez', 'Gabriel Cifuentes', 'Henry Zamora'],
-            'RM': ['Víctor Chávez', 'José Riquelme', 'Jonathan Huichalaf'],
-            'Rancagua': ['Juan Rojas'],
-            'Talca': ['Marcelo Riveros', 'Sergio Ibañez'],
-            'Chillan': ['Marco Ayala'],
-            'Los Angeles': ['Fredy Gallardo'],
-            'Concepcion': ['Felipe Santos', 'Víctor Valdebenito'],
-            'Temuco': ['Rogelio Lagos'],
-            'Osorno': ['Manuel Urrutia'],
-            'Puerto Montt': ['Juan González']
-        };
-        
-        const CALENDAR_START_HOUR = 7;
-        const CALENDAR_END_HOUR = 20;
-        const PIXELS_PER_HOUR = 50; 
-
-        const state = {
-            serviciosCache: [],
-            tecnicosCache: [],
-            currentCalendarDate: new Date(),
-            currentTimeInterval: null,
-            currentView: 'day',
-            activeFilters: [],
-            searchTerm: '',
-            foundServiceDates: [],
-            currentFoundServiceIndex: 0,
-            // NEW AUTOPLAY STATE
-            isAutoplaying: false,
-            autoplayInterval: null,
-            autoplayDirection: 1, // 1 for forward (right/down), -1 for backward (left/up)
-        };
-        let unsubscribeServicios;
-
-        const ui = {
-            loginContainer: document.getElementById('login-container'),
-            mainContent: document.getElementById('main-content'),
-            logoutButton: document.getElementById('logout-button'),
-            headerTitle: document.getElementById('header-title'),
-            loginForm: document.getElementById('login-form'),
-            emailInput: document.getElementById('email'), 
-            passwordInput: document.getElementById('password'),
-            datePicker: document.getElementById('date-picker'),
-            currentDateDisplay: document.getElementById('current-date-display'),
-            prevBtn: document.getElementById('prev-btn'),
-            nextBtn: document.getElementById('next-btn'),
-            todayBtn: document.getElementById('today-btn'),
-            viewDayBtn: document.getElementById('view-day-btn'),
-            viewWeekBtn: document.getElementById('view-week-btn'),
-            dailyViewContainer: document.getElementById('daily-view-container'),
-            weeklyViewContainer: document.getElementById('weekly-view-container'),
-            timeSlotsWrapper: document.getElementById('time-slots-wrapper'),
-            technicianColsContainer: document.getElementById('technician-columns-container'),
-            technicianHeadersContainer: document.getElementById('technician-headers-container'),
-            currentTimeIndicator: document.getElementById('current-time-indicator'),
-            filterControls: {
-                toggleBtn: document.getElementById('toggle-filter-btn'),
-                optionsContainer: document.getElementById('filter-options'),
-            },
-            searchServiceInput: document.getElementById('search-service-input'),
-            searchGoBtn: document.getElementById('search-go-btn'),
-            searchNextBtn: document.getElementById('search-next-btn'),
-            // NEW AUTOPLAY BUTTON REFERENCE
-            autoplayBtn: document.getElementById('autoplay-btn'),
-            modal: { 
-                overlay: document.getElementById('service-modal'), 
-                reqNum: document.getElementById('modal-req-num'), 
-                cliente: document.getElementById('modal-cliente'), 
-                numNV: document.getElementById('modal-numNV'), 
-                direccion: document.getElementById('modal-direccion'), 
-                vendedor: document.getElementById('modal-vendedor'), 
-                estado: document.getElementById('modal-estado'), 
-                montoServicio: document.getElementById('modal-montoServicio'),
-                tipoServicio: document.getElementById('modal-tipoServicio'),
-                tecnico: document.getElementById('modal-tecnico'), 
-                fechaAsignada: document.getElementById('modal-fechaAsignada'), 
-                horaTraslado: document.getElementById('modal-horaTraslado'), 
-                horaInicio: document.getElementById('modal-horaInicio'), 
-                horaTermino: document.getElementById('modal-horaTermino'), 
-                contacto: document.getElementById('modal-contacto'), 
-                telefono: document.getElementById('modal-telefono'), 
-                tieneRepuestos: document.getElementById('modal-tieneRepuestos'), 
-                repDespachados: document.getElementById('modal-repDespachados'), 
-                fechaSolicitud: document.getElementById('modal-fecha-solicitud'), 
-                fechaEdicion: document.getElementById('modal-fecha-edicion'), 
-                infoServicio: document.getElementById('modal-info-servicio')
-            },
-            modalCloseBtns: document.querySelectorAll('.modal-close-btn'),
-        };
-
-        auth.onAuthStateChanged(async user => user ? setupApp(user) : tearDownApp());
-        
-        async function setupApp(user) {
-            ui.loginContainer.style.display = 'none';
-            ui.mainContent.style.display = 'block';
-            ui.headerTitle.textContent = `Calendario: ${user.email.split('@')[0]}`;
-            await cargarTecnicos();
-            iniciarListenerServicios();
-            setupCalendar(); 
-            setupFilters();
-            addSearchListeners();
-            // Add listener for the new autoplay button
-            ui.autoplayBtn.addEventListener('click', toggleAutoplay);
-        }
-        function tearDownApp() {
-            ui.loginContainer.style.display = 'flex';
-            ui.mainContent.style.display = 'none';
-            if (unsubscribeServicios) unsubscribeServicios();
-            if (state.currentTimeInterval) clearInterval(state.currentTimeInterval);
-            stopAutoplay(); // Ensure autoplay stops on logout
-        }
-        async function cargarTecnicos() {
-            try {
-                const snapshot = await db.collection('tecnicos').where('activo', '==', true).orderBy('nombre').get();
-                state.tecnicosCache = snapshot.docs.map(doc => ({id: doc.id, nombre: doc.data().nombre}));
-            } catch (error) { console.error("Error al cargar técnicos: ", error); }
-        }
-        function iniciarListenerServicios() {
-            unsubscribeServicios = db.collection('servicios').onSnapshot(snapshot => {
-                state.serviciosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                if (state.searchTerm) {
-                    performSearch(state.searchTerm, false); 
-                } else {
-                    render();
-                }
-            }, error => console.error("Error al escuchar servicios:", error));
-        }
-
-        function setupCalendar() {
-            updateDatePicker(); 
-            ui.timeSlotsWrapper.innerHTML = ''; 
-            for (let hour = CALENDAR_START_HOUR; hour < CALENDAR_END_HOUR; hour++) {
-                const timeSlot = document.createElement('div');
-                timeSlot.className = 'time-slot';
-                timeSlot.style.height = `${PIXELS_PER_HOUR}px`;
-                timeSlot.innerHTML = `<span>${hour}:00</span>`;
-                ui.timeSlotsWrapper.appendChild(timeSlot);
-            }
-        }
-        
-        function setupFilters() {
-            const container = ui.filterControls.optionsContainer;
-            container.innerHTML = '';
-            for (const zona in ZONAS) {
-                const checkboxContainer = document.createElement('div');
-                checkboxContainer.className = 'filter-checkbox';
-                
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.id = `filter-${zona}`;
-                checkbox.value = zona;
-                
-                const label = document.createElement('label');
-                label.htmlFor = `filter-${zona}`;
-                label.textContent = zona;
-                
-                checkboxContainer.appendChild(checkbox);
-                checkboxContainer.appendChild(label);
-                container.appendChild(checkboxContainer);
-            }
-
-            ui.filterControls.toggleBtn.addEventListener('click', () => {
-                const isHidden = container.style.display === 'none';
-                container.style.display = isHidden ? 'flex' : 'none';
-                ui.filterControls.toggleBtn.textContent = isHidden ? 'Ocultar Filtros' : 'Filtro por Zona';
-            });
-            
-            container.addEventListener('change', () => {
-                const checkedBoxes = container.querySelectorAll('input[type="checkbox"]:checked');
-                state.activeFilters = Array.from(checkedBoxes).map(cb => cb.value);
-                render();
-            });
-        }
-
-        function addSearchListeners() {
-            ui.searchGoBtn.addEventListener('click', () => {
-                const term = ui.searchServiceInput.value.toLowerCase().trim();
-                if (term) {
-                    performSearch(term, true);
-                } else {
-                    state.searchTerm = '';
-                    state.foundServiceDates = [];
-                    ui.searchNextBtn.style.display = 'none';
-                    render();
-                }
-            });
-
-            ui.searchNextBtn.addEventListener('click', () => {
-                if (state.foundServiceDates.length > 0) {
-                    state.currentFoundServiceIndex = (state.currentFoundServiceIndex + 1) % state.foundServiceDates.length;
-                    navigateToDate(state.foundServiceDates[state.currentFoundServiceIndex]);
-                }
-            });
-
-            ui.searchServiceInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    ui.searchGoBtn.click();
-                }
-            });
-            ui.searchServiceInput.addEventListener('input', () => {
-                if (ui.searchServiceInput.value.trim() === '') {
-                    state.searchTerm = '';
-                    state.foundServiceDates = [];
-                    ui.searchNextBtn.style.display = 'none';
-                    render();
-                }
-            });
-        }
-        
-        function performSearch(term, navigateToFirst = true) {
-            state.searchTerm = term;
-            state.foundServiceDates = [];
-
-            const matchingServices = state.serviciosCache.filter(s => {
-                return (s.numRequerimiento && s.numRequerimiento.toLowerCase().includes(term)) ||
-                       (s.numNV && s.numNV.toLowerCase().includes(term)) ||
-                       (s.cliente && s.cliente.toLowerCase().includes(term));
-            });
-
-            const uniqueDates = [...new Set(matchingServices.map(s => s.fechaAsignada))]
-                                .filter(date => date)
-                                .sort(); 
-
-            state.foundServiceDates = uniqueDates;
-
-            if (state.foundServiceDates.length > 0) {
-                if (navigateToFirst) {
-                    state.currentFoundServiceIndex = 0;
-                    navigateToDate(state.foundServiceDates[0]);
-                }
-                ui.searchNextBtn.style.display = state.foundServiceDates.length > 1 ? 'inline-flex' : 'none';
-            } else {
-                alert(`No se encontraron servicios para "${term}".`);
-                ui.searchNextBtn.style.display = 'none';
-                render();
-            }
-        }
-        
-        function getYYYYMMDD(date) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        }
-        
-        function updateDatePicker() {
-            ui.datePicker.value = getYYYYMMDD(state.currentCalendarDate);
-        }
-
-        function navigateToDate(dateString) {
-            if (!dateString) return;
-            const parts = dateString.split('-').map(Number);
-            state.currentCalendarDate = new Date(parts[0], parts[1] - 1, parts[2]);
-            updateDatePicker();
-            render(); 
-        }
-
-        function getFilteredTechnicians() {
-            if (state.activeFilters.length === 0) {
-                return state.tecnicosCache;
-            }
-            const techniciansInZone = state.activeFilters.flatMap(zona => ZONAS[zona]);
-            return state.tecnicosCache.filter(tech => techniciansInZone.includes(tech.nombre));
-        }
-
+        // Función para formatear monto en pesos chilenos para visualización
         function displayCurrency(value) {
             if (value === undefined || value === null || value === '' || isNaN(value)) return 'N/A';
-            const numericValue = parseInt(String(value).replace(/\$|\./g, ''), 10);
+            const numericValue = parseInt(String(value).replace(/\$|\./g, ''), 10); // Limpia y convierte a número
             if (isNaN(numericValue)) return 'N/A';
             return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(numericValue);
         }
+        
+        // Función para obtener el monto numérico
+        function getNumericAmount(value) {
+            if (value === undefined || value === null || value === '' || isNaN(value)) return 0;
+            return parseInt(String(value).replace(/\$|\./g, ''), 10) || 0;
+        }
+
+        const ui = {
+            body: document.documentElement,
+            tableBody: document.getElementById('tabla-visor-servicios'),
+            kpi: { 
+                total: document.getElementById('kpi-total'), 
+                pending: document.getElementById('kpi-pending'), 
+                confirmed: document.getElementById('kpi-confirmed'),
+                totalAmount: document.getElementById('kpi-total-amount'),
+                // NUEVOS KPIs
+                pendingAmount: document.getElementById('kpi-pending-amount'), 
+                confirmedAmount: document.getElementById('kpi-confirmed-amount'),
+            },
+            modal: {
+                overlay: document.getElementById('service-modal'), closeBtn: document.getElementById('modal-close'),
+                reqNum: document.getElementById('modal-req-num'), cliente: document.getElementById('modal-cliente'), numNV: document.getElementById('modal-numNV'),
+                direccion: document.getElementById('modal-direccion'), vendedor: document.getElementById('modal-vendedor'), estado: document.getElementById('modal-estado'),
+                montoServicio: document.getElementById('modal-montoServicio'),
+                tipoServicio: document.getElementById('modal-tipoServicio'),
+                contacto: document.getElementById('modal-contacto'), telefono: document.getElementById('modal-telefono'),
+                tieneRepuestos: document.getElementById('modal-tieneRepuestos'), repDespachados: document.getElementById('modal-repDespachados'),
+                fechaProgramacion: document.getElementById('modal-fecha-programacion'), fechaAsignada: document.getElementById('modal-fecha-asignada'),
+                fechaSolicitud: document.getElementById('modal-fecha-solicitud'), fechaEdicion: document.getElementById('modal-fecha-edicion'),
+                infoServicio: document.getElementById('modal-info-servicio'), obsPlanificacion: document.getElementById('modal-obs-planificacion'),
+            },
+            themeToggle: document.getElementById('theme-toggle'),
+            exportBtn: document.getElementById('export-csv-btn'),
+            filters: {
+                busqueda: document.getElementById('busqueda'), estado: document.getElementById('filtro-estado'),
+                vendedor: document.getElementById('filtro-vendedor'), 
+                tipoServicio: document.getElementById('filtro-tipo-servicio'),
+                fechaAsignadaDesde: document.getElementById('filtro-fecha-asignada-desde'),
+                fechaAsignadaHasta: document.getElementById('filtro-fecha-asignada-hasta'),
+                repuestos: document.getElementById('filtro-repuestos'),
+                repDespachados: document.getElementById('filtro-rep-despachados'), btnClear: document.getElementById('btn-limpiar-filtros'),
+            },
+            headers: document.querySelectorAll('th[data-sort]'),
+            resultsInfo: document.getElementById('results-info'),
+            pagination: document.getElementById('pagination-controls'),
+        };
+
+        const state = {
+            allServices: [],
+            filteredServices: [],
+            vendedoresCache: [],
+            sortConfig: { column: 'timestamp', direction: 'desc' },
+            pagination: { currentPage: 1, rowsPerPage: 20 },
+            isFirstLoad: true,
+        };
+        
+        async function init() {
+            loadPreferences();
+            addEventListeners();
+            try {
+                await auth.signInWithEmailAndPassword(viewerEmail, viewerPassword);
+                
+                db.collection('servicios').onSnapshot(snapshot => {
+                    console.log("Datos recibidos en tiempo real.");
+                    state.allServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    if (state.isFirstLoad) {
+                        populateFilters();
+                        state.isFirstLoad = false;
+                    }
+                    
+                    applyFiltersAndRender();
+                }, error => {
+                    console.error("Error al escuchar la base de datos:", error);
+                    alert("Se perdió la conexión a la base de datos en tiempo real.");
+                });
+
+            } catch (error) { console.error("Error en la inicialización:", error); alert("No se pudo conectar a la base de datos."); }
+        }
+
+        function applyFiltersAndRender() {
+            applyFilters();
+            applySorting();
+            render();
+            savePreferences();
+        }
 
         function render() {
-            if (state.currentView === 'day') {
-                renderDailyCalendar();
-            } else {
-                renderWeeklyCalendar();
-            }
+            renderDashboard();
+            renderTable();
+            renderPagination();
+            updateSortIndicators();
         }
         
-        function filterServicesBySearchTerm(services) {
-            if (!state.searchTerm) {
-                return services;
-            }
-            const term = state.searchTerm;
-            return services.filter(s => {
-                return (s.numRequerimiento && s.numRequerimiento.toLowerCase().includes(term)) ||
-                       (s.numNV && s.numNV.toLowerCase().includes(term)) ||
-                       (s.cliente && s.cliente.toLowerCase().includes(term));
-            });
-        }
-
-
-        function renderDailyCalendar() {
-            ui.dailyViewContainer.style.display = 'block';
-            ui.weeklyViewContainer.style.display = 'none';
-            ui.currentTimeIndicator.style.display = 'none';
-            
-            const filteredTechnicians = getFilteredTechnicians();
-            if (filteredTechnicians.length === 0) {
-                ui.technicianColsContainer.innerHTML = '<div style="padding: 2rem; text-align:center; width: 100%;">Seleccione una zona o no hay técnicos disponibles.</div>';
-                ui.technicianHeadersContainer.innerHTML = '';
-                return;
-            };
-
-            ui.currentDateDisplay.textContent = state.currentCalendarDate.toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            
-            ui.technicianColsContainer.innerHTML = '';
-            ui.technicianHeadersContainer.innerHTML = '';
-            
-            let servicesForDay = state.serviciosCache.filter(s => s.fechaAsignada === getYYYYMMDD(state.currentCalendarDate) && s.tecnicos);
-            
-            if (state.searchTerm) {
-                servicesForDay = filterServicesBySearchTerm(servicesForDay);
-            }
-
-            filteredTechnicians.forEach(tecnico => {
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'technician-header';
-                headerDiv.textContent = tecnico.nombre;
-                ui.technicianHeadersContainer.appendChild(headerDiv);
-
-                const columnDiv = document.createElement('div');
-                columnDiv.className = 'technician-column';
+        function applyFilters() {
+            const f = ui.filters;
+            state.filteredServices = state.allServices.filter(s => {
+                const searchStr = f.busqueda.value.toLowerCase();
+                const matchSearch = !searchStr || [s.cliente, s.direccion, s.nomContacto, s.numRequerimiento, s.infoServicio, s.numNV, String(s.montoServicio || '').toLowerCase(), String(s.tipoServicio || '').toLowerCase()]
+                    .some(val => String(val || '').toLowerCase().includes(searchStr));
                 
-                for (let hour = CALENDAR_START_HOUR; hour < CALENDAR_END_HOUR; hour++) {
-                    const gridCell = document.createElement('div');
-                    gridCell.className = 'time-slot';
-                    gridCell.style.height = `${PIXELS_PER_HOUR}px`;
-                    columnDiv.appendChild(gridCell);
-                }
-                ui.technicianColsContainer.appendChild(columnDiv);
+                const selectedVendedores = Array.from(f.vendedor.options)
+                                             .filter(option => option.selected && option.value !== '')
+                                             .map(option => option.value);
+                const matchVendedor = selectedVendedores.length === 0 || (s.vendedor && selectedVendedores.includes(s.vendedor));
 
-                const techServices = servicesForDay
-                    .filter(s => Array.isArray(s.tecnicos) ? s.tecnicos.includes(tecnico.nombre) : s.tecnicos === tecnico.nombre)
-                    .map(s => ({...s, start: timeToMinutes(s.horaInicio), end: timeToMinutes(s.horaTermino) || timeToMinutes(s.horaInicio) + 60 }))
-                    .sort((a,b) => a.start - b.start);
+                const matchTipoServicio = !f.tipoServicio.value || s.tipoServicio === f.tipoServicio.value;
+
+                let matchFechaAsignada = true;
+                const fechaDesde = f.fechaAsignadaDesde.value;
+                const fechaHasta = f.fechaAsignadaHasta.value;
+
+                if (s.fechaAsignada) {
+                    if (fechaDesde && s.fechaAsignada < fechaDesde) {
+                        matchFechaAsignada = false;
+                    }
+                    if (fechaHasta && s.fechaAsignada > fechaHasta) {
+                        matchFechaAsignada = false;
+                    }
+                } else if (fechaDesde || fechaHasta) {
+                    matchFechaAsignada = false;
+                }
                 
-                const layout = calculateOverlaps(techServices);
+                return matchSearch &&
+                    (!f.estado.value || s.estado === f.estado.value) &&
+                    matchVendedor && 
+                    matchTipoServicio && 
+                    matchFechaAsignada &&
+                    (!f.repuestos.value || s.tieneRepuestos === f.repuestos.value) &&
+                    (!f.repDespachados.value || s.repuestosDespachados === f.repDespachados.value);
+            });
+            if (state.pagination.currentPage > Math.ceil(state.filteredServices.length / state.pagination.rowsPerPage) && state.filteredServices.length > 0) {
+                state.pagination.currentPage = 1;
+            }
+        }
 
-                layout.forEach(service => {
-                    const { serviceBlock, travelBlock } = createEventBlocks(service);
-                    if (travelBlock) columnDiv.appendChild(travelBlock);
-                    if (serviceBlock) columnDiv.appendChild(serviceBlock);
+        function applySorting() {
+            const { column, direction } = state.sortConfig;
+            state.filteredServices.sort((a, b) => {
+                let valA = a[column], valB = b[column];
+
+                if (column === 'montoServicio') {
+                    valA = getNumericAmount(valA);
+                    valB = getNumericAmount(valB);
+                }
+                
+                if (column === 'timestamp') { valA = a.fechaEdicion || a.timestamp; valB = b.fechaEdicion || b.timestamp; }
+                if (valA?.toDate) valA = valA.toDate(); if (valB?.toDate) valB = valB.toDate();
+                if (valA === undefined || valA === null) return 1;
+                if (valB === undefined || valB === null) return -1;
+                if (typeof valA === 'string' && column !== 'montoServicio') valA = valA.toLowerCase();
+                if (typeof valB === 'string' && column !== 'montoServicio') valB = valB.toLowerCase();
+                if (valA < valB) return direction === 'asc' ? -1 : 1;
+                if (valA > valB) return direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        
+        function renderDashboard() {
+            const source = state.filteredServices;
+            ui.kpi.total.textContent = source.length;
+            ui.kpi.confirmed.textContent = source.filter(s => s.estado === 'Confirmado' || s.estado === 'En Progreso').length;
+            ui.kpi.pending.textContent = source.filter(s => s.estado === 'Pendiente' || s.estado === 'Esperando Repuestos').length;
+            
+            // Calcular y mostrar Monto Total de Servicios
+            const totalAmount = source.reduce((sum, s) => sum + getNumericAmount(s.montoServicio), 0);
+            ui.kpi.totalAmount.textContent = displayCurrency(totalAmount);
+
+            // Calcular y mostrar Monto de Servicios Pendientes / Esperando Repuestos
+            const pendingAmount = source
+                .filter(s => s.estado === 'Pendiente' || s.estado === 'Esperando Repuestos')
+                .reduce((sum, s) => sum + getNumericAmount(s.montoServicio), 0);
+            ui.kpi.pendingAmount.textContent = displayCurrency(pendingAmount);
+
+            // Calcular y mostrar Monto de Servicios Confirmados / En Progreso
+            const confirmedAmount = source
+                .filter(s => s.estado === 'Confirmado' || s.estado === 'En Progreso')
+                .reduce((sum, s) => sum + getNumericAmount(s.montoServicio), 0);
+            ui.kpi.confirmedAmount.textContent = displayCurrency(confirmedAmount);
+        }
+
+        function renderTable() {
+            ui.tableBody.innerHTML = '';
+            const { currentPage, rowsPerPage } = state.pagination;
+            const pageServices = state.filteredServices.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+            if (pageServices.length === 0) {
+                ui.tableBody.innerHTML = `<tr><td colspan="12" style="text-align:center;">No se encontraron resultados.</td></tr>`;
+                return;
+            }
+
+            pageServices.forEach(s => {
+                const tr = document.createElement('tr');
+                
+                const lastModified = s.fechaEdicion || s.timestamp;
+                if (lastModified?.toDate) {
+                    const diffSeconds = (new Date() - lastModified.toDate()) / 1000;
+                    if (diffSeconds < 90) { 
+                        tr.classList.add('recently-updated');
+                    }
+                }
+                
+                const obsFull = s.observacionesPlanificacion || '';
+                const obsSnippet = obsFull.length > 35 ? obsFull.substring(0, 35) + '...' : obsFull;
+
+                tr.innerHTML = `
+                    <td>${s.numRequerimiento || 'N/A'}</td>
+                    <td>${s.numNV || 'N/A'}</td>
+                    <td>${s.cliente || 'N/A'}</td>
+                    <td>${displayCurrency(s.montoServicio)}</td> <td>${s.tipoServicio || 'N/A'}</td> <td>${s.vendedor ? s.vendedor.split('@')[0] : 'N/A'}</td>
+                    <td>${s.tieneRepuestos || 'N/A'}</td>
+                    <td>${s.repuestosDespachados || 'N/A'}</td>
+                    <td>${formatDateString(s.fechaAsignada)}</td>
+                    <td>${s.estado || 'N/A'}</td>
+                    <td class="observation-cell" title="${obsFull}">${obsSnippet || 'N/A'}</td>
+                    <td><button class="view-details-btn icon-btn" data-id="${s.id}" style="width:100%; justify-content:center;">Ver</button></td>`;
+
+                ui.tableBody.appendChild(tr);
+            });
+        }
+
+        function renderPagination() {
+            ui.pagination.innerHTML = '';
+            const totalPages = Math.ceil(state.filteredServices.length / state.pagination.rowsPerPage);
+            if (totalPages <= 1) {
+                ui.resultsInfo.textContent = `Mostrando ${state.filteredServices.length} resultados.`;
+                return;
+            }
+
+            const start = (state.pagination.currentPage - 1) * state.pagination.rowsPerPage + 1;
+            const end = Math.min(start + state.pagination.rowsPerPage - 1, state.filteredServices.length);
+            ui.resultsInfo.textContent = `Mostrando ${start}-${end} de ${state.filteredServices.length} resultados.`;
+
+            const createButton = (text, page, isDisabled = false, isActive = false) => {
+                const button = document.createElement('button');
+                button.innerHTML = text; button.disabled = isDisabled;
+                if (isActive) button.classList.add('active');
+                button.addEventListener('click', () => { state.pagination.currentPage = page; render(); savePreferences(); });
+                return button;
+            };
+            ui.pagination.appendChild(createButton('‹', state.pagination.currentPage - 1, state.pagination.currentPage === 1));
+            let pages = [];
+            if(totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+                pages = [1, 2];
+                let startPage = Math.max(3, state.pagination.currentPage - 1);
+                let endPage = Math.min(totalPages - 2, state.pagination.currentPage + 1);
+                if (state.pagination.currentPage > 3) pages.push('...');
+                for (let i = startPage; i <= endPage; i++) pages.push(i);
+                if (state.pagination.currentPage < totalPages - 2) pages.push('...');
+                pages.push(totalPages - 1, totalPages);
+            }
+
+            pages.forEach(p => {
+                if(typeof p === 'number') ui.pagination.appendChild(createButton(p, p, false, p === state.pagination.currentPage));
+                else { const span = document.createElement('span'); span.textContent = '...'; span.style.padding = '0.5rem'; ui.pagination.appendChild(span); }
+            });
+            ui.pagination.appendChild(createButton('›', state.pagination.currentPage + 1, state.pagination.currentPage === totalPages));
+        }
+        
+        function updateSortIndicators() {
+            ui.headers.forEach(header => {
+                const indicator = header.querySelector('.sort-indicator');
+                if (indicator) {
+                    indicator.textContent = header.dataset.sort === state.sortConfig.column ? (state.sortConfig.direction === 'asc' ? '▲' : '▼') : '';
+                }
+            });
+        }
+        
+        function populateFilters() {
+            const getUniqueStates = [...new Set(state.allServices.map(s => s.estado).filter(Boolean))].sort();
+            const currentEstado = ui.filters.estado.value;
+            ui.filters.estado.innerHTML = '<option value="">Todos</option>';
+            getUniqueStates.forEach(val => ui.filters.estado.add(new Option(val, val)));
+            ui.filters.estado.value = currentEstado;
+
+            state.vendedoresCache = [...new Set(state.allServices.map(s => s.vendedor).filter(Boolean))].sort();
+            const currentSelectedVendedores = Array.from(ui.filters.vendedor.options).filter(opt => opt.selected).map(opt => opt.value);
+            ui.filters.vendedor.innerHTML = '';
+            
+            state.vendedoresCache.forEach(vendedor => {
+                const option = new Option(vendedor.split('@')[0], vendedor);
+                option.selected = currentSelectedVendedores.includes(vendedor);
+                ui.filters.vendedor.add(option);
+            });
+
+            const tiposDeServicio = [
+                "Canal Tradicional", "Proyeccion", "Retail Mantencion",
+                "Retail Asistencia", "Retail Repuestos", "Post Venta", "Montaje"
+            ];
+            const currentTipoServicio = ui.filters.tipoServicio.value;
+            ui.filters.tipoServicio.innerHTML = '<option value="">Todos</option>';
+            tiposDeServicio.forEach(val => ui.filters.tipoServicio.add(new Option(val, val)));
+            ui.filters.tipoServicio.value = currentTipoServicio;
+        }
+
+        function openModal(service) {
+            ui.modal.reqNum.textContent = `Detalles: Req #${service.numRequerimiento || 'N/A'}`;
+            ui.modal.cliente.textContent = service.cliente || 'N/A';
+            ui.modal.numNV.textContent = service.numNV || 'N/A';
+            ui.modal.direccion.textContent = service.direccion || 'N/A';
+            ui.modal.vendedor.textContent = service.vendedor ? service.vendedor.split('@')[0] : 'N/A';
+            ui.modal.estado.textContent = service.estado || 'N/A';
+            
+            ui.modal.montoServicio.textContent = displayCurrency(service.montoServicio);
+            ui.modal.tipoServicio.textContent = service.tipoServicio || 'N/A';
+
+            ui.modal.contacto.textContent = service.nomContacto || 'N/A';
+            ui.modal.telefono.textContent = service.numContacto || 'N/A';
+            ui.modal.tieneRepuestos.textContent = service.tieneRepuestos || 'N/A';
+            ui.modal.repDespachados.textContent = service.tieneRepuestos === 'Sí' ? (service.repuestosDespachados || 'Pendiente') : 'N/A';
+            ui.modal.fechaProgramacion.textContent = formatDateString(service.fechaProgramacion);
+            ui.modal.fechaAsignada.textContent = formatDateString(service.fechaAsignada);
+            ui.modal.fechaSolicitud.textContent = formatTimestamp(service.timestamp);
+            ui.modal.fechaEdicion.textContent = service.fechaEdicion ? formatTimestamp(service.fechaEdicion) : 'Sin ediciones';
+            ui.modal.infoServicio.textContent = service.infoServicio || 'N/A';
+            ui.modal.obsPlanificacion.textContent = service.observacionesPlanificacion || 'Sin observaciones.';
+            ui.modal.overlay.classList.add('visible');
+        }
+
+        function closeModal() { ui.modal.overlay.classList.remove('visible'); }
+        function formatTimestamp(ts) { if(!ts?.toDate) return 'N/A'; const d=ts.toDate(); return `${d.toLocaleDateString('es-CL')} ${d.toLocaleTimeString('es-CL')}`; }
+        function formatDateString(dateStr) {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        function savePreferences() {
+            const selectedVendedores = Array.from(ui.filters.vendedor.options)
+                                             .filter(option => option.selected)
+                                             .map(option => option.value);
+            
+            const prefs = {
+                filters: {
+                    busqueda: ui.filters.busqueda.value, 
+                    estado: ui.filters.estado.value, 
+                    vendedor: selectedVendedores,
+                    tipoServicio: ui.filters.tipoServicio.value, 
+                    fechaAsignadaDesde: ui.filters.fechaAsignadaDesde.value,
+                    fechaAsignadaHasta: ui.filters.fechaAsignadaHasta.value,
+                    repuestos: ui.filters.repuestos.value, 
+                    repDespachados: ui.filters.repDespachados.value,
+                }, 
+                sortConfig: state.sortConfig, 
+                pagination: { currentPage: state.pagination.currentPage }
+            };
+            localStorage.setItem('visorPrefs', JSON.stringify(prefs));
+        }
+
+        function loadPreferences() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            ui.body.setAttribute('data-theme', savedTheme);
+            ui.themeToggle.checked = savedTheme === 'dark';
+            const savedPrefs = JSON.parse(localStorage.getItem('visorPrefs'));
+            if (savedPrefs) {
+                ['busqueda', 'estado', 'tipoServicio', 'repuestos', 'repDespachados', 'fechaAsignadaDesde', 'fechaAsignadaHasta'].forEach(key => {
+                    if(ui.filters[key] && savedPrefs.filters[key] !== undefined) ui.filters[key].value = savedPrefs.filters[key]; 
+                });
+                
+                if (savedPrefs.filters.vendedor && Array.isArray(savedPrefs.filters.vendedor)) {
+                    ui.filters.vendedor.dataset.preselected = JSON.stringify(savedPrefs.filters.vendedor);
+                }
+
+                state.sortConfig = savedPrefs.sortConfig;
+                state.pagination.currentPage = savedPrefs.pagination.currentPage;
+            }
+        }
+        
+        function exportToCSV() {
+            const headers = ["Nº Requerimiento", "Nº NV", "Cliente", "Monto Servicio", "Tipo Servicio", "Vendedor", "Tiene Repuestos", "Repuestos Despachados", "Fecha Sugerida", "Fecha Asignada", "Fecha Creación/Solicitud", "Fecha Última Edición", "Estado", "Observaciones Planificación", "Info. Servicio", "Dirección", "Contacto", "Teléfono"];
+            const rows = state.filteredServices.map(s => [
+                s.numRequerimiento, 
+                s.numNV, 
+                s.cliente, 
+                displayCurrency(s.montoServicio),
+                s.tipoServicio, 
+                s.vendedor, 
+                s.tieneRepuestos, 
+                s.repuestosDespachados, 
+                s.fechaProgramacion, 
+                s.fechaAsignada, 
+                formatTimestamp(s.timestamp), 
+                s.fechaEdicion ? formatTimestamp(s.fechaEdicion) : '', 
+                s.estado, 
+                s.observacionesPlanificacion, 
+                s.infoServicio, 
+                s.direccion, 
+                s.nomContacto, 
+                s.numContacto
+            ].map(val => `"${String(val || '').replace(/"/g, '""')}"`));
+            
+            const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const link = document.createElement("a");
+            link.setAttribute("href", encodeURI(csvContent));
+            link.setAttribute("download", `reporte_servicios_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function addEventListeners() {
+            ['busqueda', 'estado', 'tipoServicio', 'repuestos', 'repDespachados', 'fechaAsignadaDesde', 'fechaAsignadaHasta'].forEach(id => {
+                ui.filters[id].addEventListener('input', () => { 
+                    state.pagination.currentPage = 1; 
+                    applyFiltersAndRender(); 
                 });
             });
-            updateCurrentTimeIndicator();
-        }
-        
-        function renderWeeklyCalendar() {
-            ui.dailyViewContainer.style.display = 'none';
-            ui.weeklyViewContainer.style.display = 'block';
-            ui.currentTimeIndicator.style.display = 'none';
-            const container = ui.weeklyViewContainer;
-            container.innerHTML = ''; 
 
-            const filteredTechnicians = getFilteredTechnicians();
-            if (filteredTechnicians.length === 0) {
-                 container.innerHTML = '<div class="card" style="text-align:center;">Seleccione una zona o no hay técnicos disponibles.</div>';
-                return;
-            };
-
-            const weekStart = getWeekStartDate(state.currentCalendarDate);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekEnd.getDate() + 6);
-            ui.currentDateDisplay.textContent = `Semana del ${weekStart.toLocaleDateString('es-CL', {day: 'numeric', month: 'long'})} al ${weekEnd.toLocaleDateString('es-CL', {day: 'numeric', month: 'long', year: 'numeric'})}`;
-
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'week-grid-container';
-            container.appendChild(gridContainer);
-            
-            gridContainer.appendChild(document.createElement('div')); 
-            const weekDates = [];
-            for (let i = 0; i < 7; i++) {
-                const day = new Date(weekStart);
-                day.setDate(day.getDate() + i);
-                weekDates.push(day);
-                const headerCell = document.createElement('div');
-                headerCell.className = 'week-grid-header';
-                headerCell.innerHTML = `${day.toLocaleDateString('es-CL', {weekday: 'short'})}<br>${day.toLocaleDateString('es-CL', {day: 'numeric', month: 'short'})}`;
-                gridContainer.appendChild(headerCell);
-            }
-
-            const weekDateStrings = weekDates.map(d => getYYYYMMDD(d));
-            
-            let servicesForWeek = state.serviciosCache.filter(s => weekDateStrings.includes(s.fechaAsignada) && s.tecnicos);
-            
-            if (state.searchTerm) {
-                servicesForWeek = filterServicesBySearchTerm(servicesForWeek);
-            }
-
-            filteredTechnicians.forEach(tecnico => {
-                const techCell = document.createElement('div');
-                techCell.className = 'week-grid-tech-cell';
-                techCell.textContent = tecnico.nombre;
-                gridContainer.appendChild(techCell);
-
-                weekDates.forEach(day => {
-                    const dayCell = document.createElement('div');
-                    dayCell.className = 'week-grid-day-cell';
-                    
-                    const dayString = getYYYYMMDD(day);
-                    const servicesForCell = servicesForWeek
-                        .filter(s => s.fechaAsignada === dayString && (Array.isArray(s.tecnicos) ? s.tecnicos.includes(tecnico.nombre) : s.tecnicos === tecnico.nombre))
-                        .sort((a,b) => (a.horaInicio || '').localeCompare(b.horaInicio || ''));
-
-                    servicesForCell.forEach(service => {
-                        const statusClass = `status-${(service.estado || 'Otros').replace(/\s+/g, '-')}`;
-                        const typeClass = service.tipoServicio ? `type-${service.tipoServicio.replace(/\s+/g, '-')}` : ''; 
-
-                        const eventItem = document.createElement('div');
-                        eventItem.className = `week-event-item ${statusClass} ${typeClass}`; 
-                        eventItem.dataset.serviceId = service.id;
-                        
-                        const time = (service.horaInicio && service.horaTermino) ? `${service.horaInicio} - ${service.horaTermino}` : (service.horaInicio || '');
-                        
-                        eventItem.innerHTML = `
-                            <strong>${service.cliente || 'N/A'}</strong>
-                            <span>${time} - ${displayCurrency(service.montoServicio)}</span> <span>${service.tipoServicio || 'Asistencia'}</span>
-                        `;
-                        dayCell.appendChild(eventItem);
-                    });
-                    
-                    gridContainer.appendChild(dayCell);
-                });
+            ui.filters.vendedor.addEventListener('change', () => {
+                state.pagination.currentPage = 1;
+                applyFiltersAndRender();
             });
-            gridContainer.addEventListener('click', handleEventClick);
-        }
-        
-        // --- NEW AUTOPLAY FUNCTIONS ---
-        function toggleAutoplay() {
-            state.isAutoplaying = !state.isAutoplaying;
-            ui.autoplayBtn.classList.toggle('active', state.isAutoplaying);
-            if (state.isAutoplaying) {
-                startAutoplay();
-            } else {
-                stopAutoplay();
-            }
-        }
 
-        function startAutoplay() {
-            stopAutoplay(); // Ensure no multiple intervals are running
-
-            const scrollStep = 1; // Pixels to scroll each step. Smaller is smoother.
-            const intervalTime = 35; // Milliseconds between steps. Lower is faster.
-
-            state.autoplayInterval = setInterval(() => {
-                if (state.currentView === 'day') {
-                    const container = document.querySelector('#daily-view-container .calendar-scroll-container');
-                    if (!container) return;
-
-                    let maxScroll = container.scrollWidth - container.clientWidth;
-                    if (container.scrollLeft >= maxScroll - scrollStep) {
-                        state.autoplayDirection = -1; // Reverse to go left
-                    } else if (container.scrollLeft <= 0) {
-                        state.autoplayDirection = 1; // Go right
-                    }
-                    container.scrollLeft += scrollStep * state.autoplayDirection;
-
-                } else if (state.currentView === 'week') {
-                    const container = document.querySelector('#weekly-view-container .week-grid-container');
-                    if (!container) return;
-
-                    let maxScroll = container.scrollHeight - container.clientHeight;
-                    if (container.scrollTop >= maxScroll - scrollStep) {
-                        state.autoplayDirection = -1; // Reverse to go up
-                    } else if (container.scrollTop <= 0) {
-                        state.autoplayDirection = 1; // Go down
-                    }
-                    container.scrollTop += scrollStep * state.autoplayDirection;
-                }
-            }, intervalTime);
-        }
-
-        function stopAutoplay() {
-            if (state.autoplayInterval) {
-                clearInterval(state.autoplayInterval);
-                state.autoplayInterval = null;
-            }
-        }
-        // --- END OF NEW AUTOPLAY FUNCTIONS ---
-
-        function calculateOverlaps(services) {
-            const layout = [];
-            services.forEach(s => s.processed = false); 
-            for (let i = 0; i < services.length; i++) {
-                if (services[i].processed) continue;
-                let concurrent = [services[i]];
-                for (let j = i + 1; j < services.length; j++) {
-                     if(services[i].fechaAsignada !== services[j].fechaAsignada) continue;
-                    if (services[j].start < services[i].end && services[j].end > services[i].start) {
-                       concurrent.push(services[j]);
-                    }
-                }
-                const width = 90 / concurrent.length;
-                concurrent.sort((a,b) => a.start - b.start).forEach((event, index) => {
-                    if (!event.processed) {
-                        layout.push({ ...event, style: { width: `${width}%`, left: `${index * width}%` } });
-                        event.processed = true;
-                    }
+            ui.filters.btnClear.addEventListener('click', () => { 
+                ui.filters.busqueda.value = '';
+                ui.filters.estado.value = '';
+                Array.from(ui.filters.vendedor.options).forEach(option => {
+                    option.selected = false;
                 });
-            }
-            return layout;
-        }
+                ui.filters.tipoServicio.value = '';
+                ui.filters.fechaAsignadaDesde.value = '';
+                ui.filters.fechaAsignadaHasta.value = '';
+                ui.filters.repuestos.value = '';
+                ui.filters.repDespachados.value = '';
+                applyFiltersAndRender(); 
+            });
 
-        const timeToMinutes = (timeStr) => !timeStr || !timeStr.includes(':') ? 0 : timeStr.split(':').map(Number).reduce((h, m) => h * 60 + m);
-        
-        function createEventBlocks(service) {
-            if (service.start === undefined) return {};
-            const statusClass = `status-${(service.estado || 'Otros').replace(/\s+/g, '-')}`;
-            const typeClass = service.tipoServicio ? `type-${service.tipoServicio.replace(/\s+/g, '-')}` : ''; 
-            
-            const serviceTop = ((service.start / 60) - CALENDAR_START_HOUR) * PIXELS_PER_HOUR;
-            const serviceHeight = Math.max(((service.end - service.start) / 60) * PIXELS_PER_HOUR, 15);
-            
-            const serviceBlock = document.createElement('div');
-            serviceBlock.className = `event-block ${statusClass} ${typeClass}`;
-            Object.assign(serviceBlock.style, { top: `${serviceTop}px`, height: `${serviceHeight}px`, ...service.style });
-            serviceBlock.innerHTML = `
-                <strong>${service.cliente || 'N/A'}</strong>
-                <span>${service.horaInicio} - ${service.horaTermino || ''}</span>
-                <span>${service.tipoServicio || 'N/A'} - ${displayCurrency(service.montoServicio)}</span> `;
-            serviceBlock.dataset.serviceId = service.id;
-            serviceBlock.title = `Cliente: ${service.cliente}\nReq: ${service.numRequerimiento || 'N/A'}\nEstado: ${service.estado}\nMonto: ${displayCurrency(service.montoServicio)}\nTipo: ${service.tipoServicio || 'N/A'}`;
-            
-            let travelBlock = null;
-            if (service.horaTraslado && service.horaInicio) {
-                const travelStartMinutes = timeToMinutes(service.horaTraslado);
-                const serviceStartMinutes = service.start;
-                if (travelStartMinutes > 0 && travelStartMinutes < serviceStartMinutes) {
-                    const travelDurationMinutes = serviceStartMinutes - travelStartMinutes;
-                    const travelHeight = (travelDurationMinutes / 60) * PIXELS_PER_HOUR;
-                    const travelTop = serviceTop - travelHeight;
-                    travelBlock = document.createElement('div');
-                    travelBlock.className = `travel-block ${statusClass} ${typeClass}`;
-                    Object.assign(travelBlock.style, { top: `${travelTop}px`, height: `${travelHeight}px`, ...service.style });
-                    travelBlock.innerHTML = `Traslado`;
-                    travelBlock.dataset.serviceId = service.id;
-                    travelBlock.title = `Traslado de ${service.horaTraslado} a ${service.horaInicio} para el servicio de ${service.cliente}`;
+            ui.headers.forEach(header => header.addEventListener('click', () => {
+                const newColumn = header.dataset.sort;
+                if (!newColumn) return;
+                state.sortConfig.direction = (state.sortConfig.column === newColumn && state.sortConfig.direction === 'desc') ? 'asc' : 'desc';
+                state.sortConfig.column = newColumn;
+                applyFiltersAndRender();
+            }));
+            ui.themeToggle.addEventListener('change', (e) => { ui.body.setAttribute('data-theme', e.target.checked ? 'dark' : 'light'); localStorage.setItem('theme', e.target.checked ? 'dark' : 'light'); });
+            ui.exportBtn.addEventListener('click', exportToCSV);
+            ui.tableBody.addEventListener('click', (e) => {
+                const btn = e.target.closest('.view-details-btn');
+                if (btn) {
+                    const service = state.allServices.find(s => s.id === btn.dataset.id);
+                    if (service) openModal(service);
                 }
-            }
-            return { serviceBlock, travelBlock };
+            });
+            ui.modal.closeBtn.addEventListener('click', closeModal);
+            ui.modal.overlay.addEventListener('click', (e) => { if (e.target === ui.modal.overlay) closeModal(); });
         }
 
-        function updateCurrentTimeIndicator() {
-            if (state.currentTimeInterval) clearInterval(state.currentTimeInterval);
-            if (state.currentView !== 'day') {
-                ui.currentTimeIndicator.style.display = 'none';
-                return;
-            }
-            const today = new Date();
-            const todayYYYYMMDD = getYYYYMMDD(today);
-            const currentCalendarYYYYMMDD = getYYYYMMDD(state.currentCalendarDate);
-
-            if (currentCalendarYYYYMMDD !== todayYYYYMMDD) {
-                ui.currentTimeIndicator.style.display = 'none';
-                return;
-            }
-            const setPosition = () => {
-                const now = new Date();
-                const minutes = now.getHours() * 60 + now.getMinutes();
-                const headerHeight = document.querySelector('.technician-header')?.offsetHeight || 53;
-                const top = ((minutes / 60) - CALENDAR_START_HOUR) * PIXELS_PER_HOUR + headerHeight;
-                const calendarBodyHeight = (CALENDAR_END_HOUR - CALENDAR_START_HOUR) * PIXELS_PER_HOUR;
-                if (top >= headerHeight && top < calendarBodyHeight + headerHeight) {
-                    ui.currentTimeIndicator.style.top = `${top}px`;
-                    ui.currentTimeIndicator.style.display = 'block';
-                } else {
-                    ui.currentTimeIndicator.style.display = 'none';
-                }
-            };
-            setPosition();
-            state.currentTimeInterval = setInterval(setPosition, 60000);
-        }
-        
-        function getWeekStartDate(date) {
-            const d = new Date(date);
-            const dayOfWeek = d.getDay();
-            const diff = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-            const weekStart = new Date(d.getFullYear(), d.getMonth(), diff);
-            weekStart.setHours(0,0,0,0);
-            return weekStart;
-        }
-        
-        function switchView(view) {
-            // UPDATED to stop autoplay when switching views
-            if (state.isAutoplaying) {
-                toggleAutoplay(); // This will stop it and reset the button
-            }
-            
-            state.currentView = view;
-            render();
-            ui.viewDayBtn.classList.toggle('active', view === 'day');
-            ui.viewWeekBtn.classList.toggle('active', view === 'week');
-        }
-
-        ui.prevBtn.addEventListener('click', () => {
-             if (state.currentView === 'day') {
-                state.currentCalendarDate.setDate(state.currentCalendarDate.getDate() - 1);
-            } else {
-                state.currentCalendarDate.setDate(state.currentCalendarDate.getDate() - 7);
-            }
-            updateDatePicker();
-            render();
-        });
-
-        ui.todayBtn.addEventListener('click', () => {
-            state.currentCalendarDate = new Date();
-            updateDatePicker();
-            render();
-        });
-
-        ui.nextBtn.addEventListener('click', () => {
-            if (state.currentView === 'day') {
-                state.currentCalendarDate.setDate(state.currentCalendarDate.getDate() + 1);
-            } else {
-                state.currentCalendarDate.setDate(state.currentCalendarDate.getDate() + 7);
-            }
-            updateDatePicker();
-            render();
-        });
-        
-        ui.datePicker.addEventListener('change', () => { 
-            const dateParts = ui.datePicker.value.split('-').map(Number);
-            state.currentCalendarDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-            render(); 
-        });
-        
-        ui.viewDayBtn.addEventListener('click', () => switchView('day'));
-        ui.viewWeekBtn.addEventListener('click', () => switchView('week'));
-
-        function handleEventClick(e) {
-            const block = e.target.closest('[data-service-id]');
-            if (block?.dataset.serviceId) {
-                const service = state.serviciosCache.find(s => s.id === block.dataset.serviceId);
-                if (service) openModal('service-modal', service);
-            }
-        }
-        
-        ui.dailyViewContainer.addEventListener('click', handleEventClick);
-
-        function openModal(modalId, service) {
-            const m = ui.modal;
-            const formatTimestamp = (ts) => ts ? ts.toDate().toLocaleString('es-CL', {timeZone: 'America/Santiago'}) : 'N/A';
-            
-            m.reqNum.textContent = `Detalles: Req #${service.numRequerimiento || 'N/A'}`;
-            m.cliente.textContent = service.cliente || 'N/A';
-            m.numNV.textContent = service.numNV || 'N/A';
-            m.direccion.textContent = service.direccion || 'N/A';
-            m.vendedor.textContent = service.vendedor ? service.vendedor.split('@')[0] : 'N/A';
-            m.estado.textContent = service.estado || 'N/A';
-            m.montoServicio.textContent = displayCurrency(service.montoServicio);
-            m.tipoServicio.textContent = service.tipoServicio || 'N/A';
-            const tecnicos = Array.isArray(service.tecnicos) ? service.tecnicos.join(', ') : (service.tecnico || 'Sin Asignar');
-            m.tecnico.textContent = tecnicos;
-            m.fechaAsignada.textContent = service.fechaAsignada || 'N/A';
-            m.horaTraslado.textContent = service.horaTraslado || 'N/A';
-            m.horaInicio.textContent = service.horaInicio || 'N/A';
-            m.horaTermino.textContent = service.horaTermino || 'N/A';
-            m.contacto.textContent = service.nomContacto || 'N/A';
-            m.telefono.textContent = service.numContacto || 'N/A';
-            m.tieneRepuestos.textContent = service.tieneRepuestos || 'N/A';
-            m.repDespachados.textContent = service.repDespachados || 'N/A';
-            m.fechaSolicitud.textContent = formatTimestamp(service.timestamp);
-            m.fechaEdicion.textContent = service.fechaEdicion ? formatTimestamp(service.fechaEdicion) : 'Sin ediciones';
-            m.infoServicio.textContent = service.infoServicio || 'N/A';
-            document.getElementById(modalId).classList.add('visible');
-        }
-
-        function closeModal(modalId) { document.getElementById(modalId).classList.remove('visible'); }
-        ui.modalCloseBtns.forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.modalId)));
-        ui.modal.overlay.addEventListener('click', (e) => { if (e.target === ui.modal.overlay) closeModal(ui.modal.overlay.id); });
-        
-        ui.loginForm.addEventListener('submit', (e) => { e.preventDefault(); auth.signInWithEmailAndPassword(ui.emailInput.value, ui.passwordInput.value).catch(err => alert('Error: Credenciales incorrectas.')); });
-        ui.logoutButton.addEventListener('click', () => auth.signOut());
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
